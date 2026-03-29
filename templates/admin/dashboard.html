@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Админ-панель - Image/Video Generator{% endblock %}
+
+{% block body %}
+<nav class="navbar">
+    <div class="nav-brand">🛡️ Админ-панель</div>
+    <div class="nav-user">
+        <a href="{{ url_for('index') }}" class="nav-link">🏠 Главная</a>
+        <a href="{{ url_for('admin_generations') }}" class="nav-link">📊 Генерации</a>
+        <a href="{{ url_for('admin_users') }}" class="nav-link">👥 Пользователи</a>
+        <a href="{{ url_for('logout') }}" class="nav-link">Выйти</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h1>📊 Статистика системы</h1>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_users }}</div>
+            <div class="stat-label">Пользователей</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ total_generations }}</div>
+            <div class="stat-label">Всего генераций</div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-value">{{ completed_generations }}</div>
+            <div class="stat-label">Успешных</div>
+        </div>
+        <div class="stat-card danger">
+            <div class="stat-value">{{ failed_generations }}</div>
+            <div class="stat-label">Ошибок</div>
+        </div>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ "%.2f"|format(uploads_size / 1024 / 1024) }} MB</div>
+            <div class="stat-label">Загрузки</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "%.2f"|format(results_size / 1024 / 1024) }} MB</div>
+            <div class="stat-label">Результаты</div>
+        </div>
+    </div>
+    
+    <h2>🔧 Управление</h2>
+    <div class="admin-actions">
+        <button class="btn btn-warning" onclick="cleanupHidden()">
+            🗑️ Удалить скрытые генерации
+        </button>
+        <button class="btn btn-danger" onclick="cleanupOrphans()">
+            🧹 Удалить бесхозные файлы
+        </button>
+    </div>
+    
+    <h2>📜 Последние генерации</h2>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Пользователь</th>
+                <th>Тип</th>
+                <th>Статус</th>
+                <th>Скрыто</th>
+                <th>Дата</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for gen in recent_generations %}
+            <tr class="{% if gen.hidden_from_user %}hidden-row{% endif %}">
+                <td>{{ gen.id }}</td>
+                <td>{{ gen.user.username }}</td>
+                <td>{{ gen.generation_type }}</td>
+                <td>
+                    <span class="status-badge status-{{ gen.status }}">{{ gen.status }}</span>
+                </td>
+                <td>{% if gen.hidden_from_user %}🙈{% else %}👁️{% endif %}</td>
+                <td>{{ gen.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                <td>
+                    <a href="{{ url_for('admin_view_generation', generation_id=gen.id) }}" class="btn btn-small">👁️</a>
+                    {% if gen.hidden_from_user %}
+                    <button class="btn btn-small btn-success" onclick="restoreGeneration({{ gen.id }})">♻️</button>
+                    {% endif %}
+                    <button class="btn btn-small btn-danger" onclick="deleteGeneration({{ gen.id }})">🗑️</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.stat-card.success { border-left: 4px solid #28a745; }
+.stat-card.danger { border-left: 4px solid #dc3545; }
+
+.stat-value {
+    font-size: 32px;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-label {
+    color: #666;
+    margin-top: 4px;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.admin-table th, .admin-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.admin-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+}
+
+.hidden-row {
+    background: #fff3cd;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.status-completed { background: #d4edda; color: #155724; }
+.status-failed { background: #f8d7da; color: #721c24; }
+.status-processing { background: #cce5ff; color: #004085; }
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.btn-warning { background: #ffc107; color: #000; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-success { background: #28a745; color: white; }
+</style>
+
+<script>
+function cleanupHidden() {
+    if (!confirm('Удалить все скрытые генерации с файлами?')) return;
+    
+    fetch('/admin/cleanup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({delete_hidden: true})
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function cleanupOrphans() {
+    if (!confirm('Удалить бесхозные файлы?')) return;
+    
+    fetch('/admin/cleanup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({delete_orphans: true})
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function deleteGeneration(id) {
+    if (!confirm('Полностью удалить генерацию #' + id + '?')) return;
+    
+    fetch('/admin/generation/' + id + '/delete', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+
+function restoreGeneration(id) {
+    fetch('/admin/generation/' + id + '/restore', {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
+}
+</script>
+{% endblock %}

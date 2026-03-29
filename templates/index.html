@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Image/Video Generator{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <!-- Выбор режима -->
+    <div class="mode-selector">
+        <div class="mode-card active" data-mode="text-to-image">
+            <div class="mode-icon">📝</div>
+            <h3>Текст → Изображение</h3>
+            <p>Генерация изображений с помощью Qwen Image</p>
+        </div>
+        
+        <div class="mode-card" data-mode="text-to-video">
+            <div class="mode-icon">🎬</div>
+            <h3>Текст → Видео</h3>
+            <p>Создание видео с помощью WAN 2.2</p>
+        </div>
+        
+        <div class="mode-card" data-mode="image-edit">
+            <div class="mode-icon">✏️</div>
+            <h3>Редактирование</h3>
+            <p>Изменение изображений с Qwen Image Edit</p>
+        </div>
+    </div>
+    
+    <!-- Text-to-Image -->
+    <div class="content-area active" id="text-to-image">
+        <div class="content-header">
+            <h2>Генерация изображения</h2>
+            <span class="model-badge">Qwen Image</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="prompt-image">
+                Промпт (что создать):
+                <span class="required">*</span>
+            </label>
+            <textarea 
+                id="prompt-image" 
+                rows="4" 
+                placeholder="Опишите детально что вы хотите создать. Например: beautiful sunset over mountains, vibrant orange and purple sky, detailed landscape, 8k quality, cinematic lighting"
+                required
+            ></textarea>
+            <div class="prompt-hint">
+                💡 Используйте конкретные описания: стиль, цвета, освещение, детали
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="negative-prompt-image">
+                Негативный промпт (чего избежать):
+            </label>
+            <textarea 
+                id="negative-prompt-image" 
+                rows="2" 
+                placeholder="Например: blurry, low quality, watermark, text, distorted, ugly, bad anatomy"
+            ></textarea>
+            <div class="prompt-hint">
+                💡 Укажите нежелательные элементы, дефекты
+            </div>
+        </div>
+        
+        <!-- Выбор размера изображения -->
+        <div class="form-group">
+            <label>Размер изображения:</label>
+            
+            <!-- Пресеты -->
+            <div class="size-presets">
+                {% for preset in image_presets %}
+                <button type="button" 
+                        class="preset-btn {% if preset.width == 1024 and preset.height == 1024 %}active{% endif %}" 
+                        data-width="{{ preset.width }}" 
+                        data-height="{{ preset.height }}"
+                        onclick="selectPreset(this)">
+                    {{ preset.name }}
+                    <span class="preset-size">{{ preset.width }}×{{ preset.height }}</span>
+                </button>
+                {% endfor %}
+            </div>
+            
+            <!-- Ручной ввод -->
+            <div class="size-inputs">
+                <div class="size-input-group">
+                    <label for="image-width">Ширина</label>
+                    <input type="number" 
+                           id="image-width" 
+                           value="1024" 
+                           min="{{ image_min_size }}" 
+                           max="{{ image_max_size }}" 
+                           step="{{ image_size_step }}"
+                           onchange="validateSize(this)">
+                </div>
+                <span class="size-separator">×</span>
+                <div class="size-input-group">
+                    <label for="image-height">Высота</label>
+                    <input type="number" 
+                           id="image-height" 
+                           value="1024" 
+                           min="{{ image_min_size }}" 
+                           max="{{ image_max_size }}" 
+                           step="{{ image_size_step }}"
+                           onchange="validateSize(this)">
+                </div>
+            </div>
+            
+            <div class="prompt-hint">
+                📐 Мин: {{ image_min_size }}px, Макс: {{ image_max_size }}px, шаг: {{ image_size_step }}px
+            </div>
+        </div>
+        
+        <!-- Seed (опционально) -->
+        <div class="form-group">
+            <label for="seed-image">
+                Seed (опционально):
+            </label>
+            <input type="number" 
+                   id="seed-image" 
+                   placeholder="Оставьте пустым для случайного"
+                   min="0" 
+                   max="4294967295">
+            <div class="prompt-hint">
+                🎲 Фиксированный seed позволяет воспроизвести результат
+            </div>
+        </div>
+        
+        <button class="btn btn-primary btn-large" onclick="generateImage()">
+            <span class="btn-icon">🎨</span>
+            Создать изображение
+        </button>
+    </div>
+    
+    <!-- Text-to-Video -->
+    <div class="content-area" id="text-to-video">
+        <div class="content-header">
+            <h2>Генерация видео</h2>
+            <span class="model-badge">WAN 2.2 Video</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="prompt-video">
+                Промпт для видео:
+                <span class="required">*</span>
+            </label>
+            <textarea 
+                id="prompt-video" 
+                rows="4" 
+                placeholder="Опишите движение и действие. Например: a person walking through a misty forest, camera slowly panning, cinematic movement, soft morning light filtering through trees"
+                required
+            ></textarea>
+            <div class="prompt-hint">
+                💡 Опишите движение камеры, действия, динамику сцены
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="negative-prompt-video">
+                Негативный промпт:
+            </label>
+            <textarea 
+                id="negative-prompt-video" 
+                rows="2" 
+                placeholder="Например: static, no movement, blurry, low quality, artifacts"
+            ></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="video-duration">
+                Длительность:
+            </label>
+            <div class="duration-selector">
+                <input 
+                    type="range" 
+                    id="video-duration" 
+                    min="2" 
+                    max="15" 
+                    value="4" 
+                    step="1" 
+                    oninput="updateDurationLabel()"
+                >
+                <span id="duration-label" class="duration-value">4 сек</span>
+            </div>
+            <div class="prompt-hint">
+                ⏱️ Более длинные видео требуют больше времени на генерацию (до 15 минут)
+            </div>
+        </div>
+        
+        <button class="btn btn-primary btn-large" onclick="generateVideo()">
+            <span class="btn-icon">🎬</span>
+            Создать видео
+        </button>
+    </div>
+    
+    <!-- Image Edit -->
+    <div class="content-area" id="image-edit">
+        <div class="content-header">
+            <h2>Редактирование изображений</h2>
+            <span class="model-badge">Qwen Image Edit</span>
+        </div>
+        
+        <div class="info-box">
+            <span class="info-icon">ℹ️</span>
+            <div>
+                <strong>Текстовое редактирование изображений</strong>
+                <p>Загрузите до 3 изображений и опишите желаемые изменения. Qwen Image Edit применит изменения на основе вашего текстового описания.</p>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                Загрузите изображения:
+                <span class="file-limit">(макс. 3 файла по 10MB)</span>
+            </label>
+            <div class="file-upload" id="file-upload-area" onclick="document.getElementById('file-input').click()">
+                <input 
+                    type="file" 
+                    id="file-input" 
+                    multiple 
+                    accept="image/png,image/jpeg,image/jpg,image/webp" 
+                    onchange="handleFiles(this.files)" 
+                    style="display: none;"
+                >
+                <div class="file-upload-content">
+                    <span class="upload-icon">📁</span>
+                    <p class="upload-text">Нажмите для выбора или перетащите файлы</p>
+                    <span class="upload-hint">PNG, JPG, WEBP</span>
+                </div>
+            </div>
+            <div class="preview-area" id="preview-area"></div>
+            <div class="file-counter">
+                Загружено: <span id="file-count">0</span>/3
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="edit-prompt">
+                Промпт для редактирования:
+                <span class="required">*</span>
+            </label>
+            <textarea 
+                id="edit-prompt" 
+                rows="4" 
+                placeholder="Опишите желаемые изменения. Например: make it look like an oil painting with impressionist style, add warm sunset lighting, enhance colors"
+                required
+            ></textarea>
+            <div class="prompt-hint">
+                💡 Будьте конкретны: "change background to beach" или "add dramatic cinematic lighting"
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="edit-negative">
+                Негативный промпт:
+            </label>
+            <textarea 
+                id="edit-negative" 
+                rows="2" 
+                placeholder="Что не должно появиться в результате. Например: distorted faces, blurry details, artifacts"
+            ></textarea>
+        </div>
+        
+        <button class="btn btn-primary btn-large" onclick="editImages()">
+            <span class="btn-icon">✏️</span>
+            Редактировать изображения
+        </button>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loading-text" class="loading-main-text">Генерация...</p>
+            <p class="loading-hint">Это может занять несколько минут</p>
+            <div class="loading-progress" id="loading-progress"></div>
+        </div>
+    </div>
+    
+    <!-- Results -->
+    <div class="result-area" id="result-area">
+        <div class="result-header">
+            <h2>✨ Результат</h2>
+            <button class="btn btn-secondary" onclick="downloadAll()">
+                <span class="btn-icon">📥</span>
+                Скачать всё
+            </button>
+        </div>
+        <div class="result-content" id="result-content"></div>
+    </div>
+</div>
+
+<style>
+/* Стили для выбора размера */
+.size-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.preset-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 16px;
+    border: 2px solid #e0e0e0;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.preset-btn:hover {
+    border-color: #007bff;
+    background: #f8f9ff;
+}
+
+.preset-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.preset-btn .preset-size {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+.preset-btn.active .preset-size {
+    opacity: 0.9;
+}
+
+.size-inputs {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.size-input-group {
+    flex: 1;
+    max-width: 150px;
+}
+
+.size-input-group label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.size-input-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+.size-input-group input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.size-input-group input:invalid {
+    border-color: #dc3545;
+}
+
+.size-separator {
+    font-size: 24px;
+    color: #666;
+    padding-bottom: 8px;
+}
+
+/* Дополнительные стили для seed input */
+#seed-image {
+    width: 100%;
+    max-width: 300px;
+    padding: 10px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+#seed-image:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+/* Адаптивность */
+@media (max-width: 600px) {
+    .size-presets {
+        gap: 6px;
+    }
+    
+    .preset-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+    
+    .preset-btn .preset-size {
+        font-size: 10px;
+    }
+    
+    .size-inputs {
+        gap: 8px;
+    }
+    
+    .size-input-group {
+        max-width: 120px;
+    }
+}
+</style>
+
+<script>
+// Константы для размеров
+const IMAGE_MIN_SIZE = {{ image_min_size }};
+const IMAGE_MAX_SIZE = {{ image_max_size }};
+const IMAGE_SIZE_STEP = {{ image_size_step }};
+
+// Выбор пресета размера
+function selectPreset(btn) {
+    // Убираем active со всех кнопок
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    // Добавляем active на выбранную
+    btn.classList.add('active');
+    
+    // Устанавливаем размеры
+    document.getElementById('image-width').value = btn.dataset.width;
+    document.getElementById('image-height').value = btn.dataset.height;
+}
+
+// Валидация размера
+function validateSize(input) {
+    let value = parseInt(input.value) || 1024;
+    
+    // Ограничения
+    value = Math.max(IMAGE_MIN_SIZE, Math.min(IMAGE_MAX_SIZE, value));
+    // Округление до шага
+    value = Math.round(value / IMAGE_SIZE_STEP) * IMAGE_SIZE_STEP;
+    
+    input.value = value;
+    
+    // Сбрасываем активный пресет при ручном вводе
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    
+    // Проверяем, совпадает ли с каким-то пресетом
+    const width = parseInt(document.getElementById('image-width').value);
+    const height = parseInt(document.getElementById('image-height').value);
+    
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        if (parseInt(btn.dataset.width) === width && parseInt(btn.dataset.height) === height) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+// Переключение режимов
+document.querySelectorAll('.mode-card').forEach(card => {
+    card.addEventListener('click', function() {
+        const mode = this.dataset.mode;
+        
+        // Обновляем карточки
+        document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Обновляем контент
+        document.querySelectorAll('.content-area').forEach(area => area.classList.remove('active'));
+        document.getElementById(mode).classList.add('active');
+        
+        // Скрываем результаты при переключении
+        document.getElementById('result-area').style.display = 'none';
+    });
+});
+
+// Обновление метки длительности
+function updateDurationLabel() {
+    const duration = document.getElementById('video-duration').value;
+    document.getElementById('duration-label').textContent = duration + ' сек';
+}
+
+// Генерация изображения
+function generateImage() {
+    const prompt = document.getElementById('prompt-image').value.trim();
+    const negativePrompt = document.getElementById('negative-prompt-image').value.trim();
+    const width = parseInt(document.getElementById('image-width').value) || 1024;
+    const height = parseInt(document.getElementById('image-height').value) || 1024;
+    const seedInput = document.getElementById('seed-image').value.trim();
+    const seed = seedInput ? parseInt(seedInput) : null;
+    
+    if (!prompt) {
+        alert('Введите промпт');
+        return;
+    }
+    
+    showLoading('Генерация изображения...');
+    
+    fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            prompt: prompt,
+            negative_prompt: negativePrompt,
+            model: 'wan22',
+            width: width,
+            height: height,
+            seed: seed
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            pollStatus(data.generation_id, false);
+        } else {
+            hideLoading();
+            alert('Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        alert('Ошибка соединения: ' + error);
+    });
+}
+
+// Генерация видео
+function generateVideo() {
+    const prompt = document.getElementById('prompt-video').value.trim();
+    const negativePrompt = document.getElementById('negative-prompt-video').value.trim();
+    const duration = parseInt(document.getElementById('video-duration').value);
+    
+    if (!prompt) {
+        alert('Введите промпт');
+        return;
+    }
+    
+    showLoading('Генерация видео... Это может занять до 15 минут');
+    
+    fetch('/api/generate-video', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            prompt: prompt,
+            negative_prompt: negativePrompt,
+            model: 'wan22_video',
+            duration: duration
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            pollStatus(data.generation_id, true);
+        } else {
+            hideLoading();
+            alert('Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        alert('Ошибка соединения: ' + error);
+    });
+}
+
+// Загруженные файлы
+let uploadedFiles = [];
+
+// Обработка файлов
+function handleFiles(files) {
+    const maxFiles = 3;
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    for (let file of files) {
+        if (uploadedFiles.length >= maxFiles) {
+            alert('Максимум ' + maxFiles + ' файла');
+            break;
+        }
+        
+        if (file.size > maxSize) {
+            alert('Файл ' + file.name + ' слишком большой (макс. 10MB)');
+            continue;
+        }
+        
+        uploadedFiles.push(file);
+    }
+    
+    updatePreview();
+}
+
+// Обновление превью
+function updatePreview() {
+    const previewArea = document.getElementById('preview-area');
+    const fileCount = document.getElementById('file-count');
+    
+    previewArea.innerHTML = '';
+    fileCount.textContent = uploadedFiles.length;
+    
+    uploadedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const div = document.createElement('div');
+            div.className = 'preview-item';
+            div.innerHTML = `
+                <img src="${e.target.result}" alt="${file.name}">
+                <button class="preview-remove" onclick="removeFile(${index})">×</button>
+            `;
+            previewArea.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Удаление файла
+function removeFile(index) {
+    uploadedFiles.splice(index, 1);
+    updatePreview();
+}
+
+// Редактирование изображений
+function editImages() {
+    const prompt = document.getElementById('edit-prompt').value.trim();
+    const negativePrompt = document.getElementById('edit-negative').value.trim();
+    
+    if (!prompt) {
+        alert('Введите промпт для редактирования');
+        return;
+    }
+    
+    if (uploadedFiles.length === 0) {
+        alert('Загрузите хотя бы одно изображение');
+        return;
+    }
+    
+    showLoading('Редактирование изображений...');
+    
+    const formData = new FormData();
+    uploadedFiles.forEach(file => {
+        formData.append('images', file);
+    });
+    formData.append('prompt', prompt);
+    formData.append('negative_prompt', negativePrompt);
+    
+    fetch('/api/edit-images', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            pollStatus(data.generation_id, false);
+        } else {
+            hideLoading();
+            alert('Ошибка: ' + data.error);
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        alert('Ошибка соединения: ' + error);
+    });
+}
+
+// Проверка статуса
+function pollStatus(generationId, isVideo) {
+    const interval = setInterval(() => {
+        fetch('/api/generation/' + generationId + '/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'completed') {
+                clearInterval(interval);
+                hideLoading();
+                showResults(data.output_files, isVideo);
+            } else if (data.status === 'failed') {
+                clearInterval(interval);
+                hideLoading();
+                alert('Ошибка генерации: ' + (data.error_message || 'Неизвестная ошибка'));
+            }
+            // Продолжаем polling если статус processing
+        })
+        .catch(error => {
+            clearInterval(interval);
+            hideLoading();
+            alert('Ошибка проверки статуса: ' + error);
+        });
+    }, 3000);
+}
+
+// Показать загрузку
+function showLoading(text) {
+    document.getElementById('loading-text').textContent = text || 'Генерация...';
+    document.getElementById('loading').style.display = 'flex';
+}
+
+// Скрыть загрузку
+function hideLoading() {
+    document.getElementById('loading').style.display = 'none';
+}
+
+// Показать результаты
+function showResults(files, isVideo) {
+    const resultArea = document.getElementById('result-area');
+    const resultContent = document.getElementById('result-content');
+    
+    resultContent.innerHTML = '';
+    
+    files.forEach(filename => {
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        
+        if (isVideo) {
+            div.innerHTML = `
+                <video controls autoplay loop muted>
+                    <source src="/results/${filename}" type="video/mp4">
+                </video>
+                <a href="/download/${filename}" class="btn btn-small">📥 Скачать</a>
+            `;
+        } else {
+            div.innerHTML = `
+                <img src="/results/${filename}" alt="Result">
+                <a href="/download/${filename}" class="btn btn-small">📥 Скачать</a>
+            `;
+        }
+        
+        resultContent.appendChild(div);
+    });
+    
+    resultArea.style.display = 'block';
+    resultArea.scrollIntoView({ behavior: 'smooth' });
+    
+    // Очищаем загруженные файлы после успешного редактирования
+    uploadedFiles = [];
+    updatePreview();
+}
+
+// Скачать всё
+function downloadAll() {
+    document.querySelectorAll('.result-item a').forEach(link => {
+        link.click();
+    });
+}
+
+// Drag and drop для загрузки файлов
+const uploadArea = document.getElementById('file-upload-area');
+if (uploadArea) {
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+}
+</script>
+{% endblock %}

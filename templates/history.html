@@ -1,0 +1,764 @@
+{% extends "base.html" %}
+
+{% block title %}История генераций - Image/Video Generator{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <div class="history-header">
+        <div class="history-title">
+            <h1>📜 История генераций</h1>
+            <span class="history-count">
+                {% if generations %}
+                    {{ generations|length }} записей
+                {% endif %}
+            </span>
+        </div>
+        <div class="history-actions-header">
+            <button class="btn btn-secondary" onclick="refreshHistory()">
+                🔄 Обновить
+            </button>
+            {% if generations %}
+            <button class="btn btn-danger" onclick="confirmClearHistory()">
+                🗑️ Очистить всё
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if generations %}
+        <!-- Фильтры -->
+        <div class="history-filters">
+            <button class="filter-btn active" data-filter="all">Все</button>
+            <button class="filter-btn" data-filter="text-to-image">📝 Изображения</button>
+            <button class="filter-btn" data-filter="text-to-video">🎬 Видео</button>
+            <button class="filter-btn" data-filter="image-edit">✏️ Редактирование</button>
+        </div>
+        
+        <div class="history-grid" id="history-grid">
+            {% for gen in generations %}
+            <div class="history-item" data-id="{{ gen.id }}" data-type="{{ gen.generation_type }}">
+                <div class="history-item-header">
+                    <span class="history-type">
+                        {% if gen.generation_type == 'text-to-image' %}
+                            <span class="type-icon">📝</span> Изображение
+                        {% elif gen.generation_type == 'text-to-video' %}
+                            <span class="type-icon">🎬</span> Видео
+                        {% else %}
+                            <span class="type-icon">✏️</span> Редактирование
+                        {% endif %}
+                    </span>
+                    <span class="history-status status-{{ gen.status }}">
+                        {% if gen.status == 'completed' %}✓ Готово
+                        {% elif gen.status == 'processing' %}⏳ Обработка
+                        {% elif gen.status == 'failed' %}✗ Ошибка
+                        {% else %}⏸ Ожидание
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="history-preview" onclick="openPreview({{ gen.id }})">
+                    {% if gen.output_files and gen.status == 'completed' %}
+                        {% if gen.generation_type == 'text-to-video' %}
+                            <video 
+                                src="{{ url_for('serve_result', filename=gen.output_files[0]) }}" 
+                                preload="metadata"
+                                class="history-media"
+                                muted
+                            ></video>
+                            <div class="play-overlay">▶</div>
+                        {% else %}
+                            <img 
+                                src="{{ url_for('serve_result', filename=gen.output_files[0]) }}" 
+                                alt="Result" 
+                                class="history-media"
+                                loading="lazy"
+                            >
+                        {% endif %}
+                        {% if gen.output_files|length > 1 %}
+                            <span class="more-badge">+{{ gen.output_files|length - 1 }}</span>
+                        {% endif %}
+                    {% else %}
+                        <div class="no-preview">
+                            {% if gen.status == 'processing' %}
+                                <span class="preview-icon spinning">⏳</span>
+                                <p>Обработка...</p>
+                            {% elif gen.status == 'failed' %}
+                                <span class="preview-icon">❌</span>
+                                <p>Ошибка</p>
+                            {% else %}
+                                <span class="preview-icon">📭</span>
+                                <p>Нет результата</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="history-details">
+                    <p class="history-prompt" title="{{ gen.prompt }}">
+                        {{ gen.prompt[:120] }}{% if gen.prompt|length > 120 %}...{% endif %}
+                    </p>
+                    <div class="history-meta">
+                        <span class="meta-item" title="Модель">
+                            <span class="meta-icon">🤖</span>
+                            {{ gen.model_used or 'N/A' }}
+                        </span>
+                        <span class="meta-item" title="Дата создания">
+                            <span class="meta-icon">🕐</span>
+                            {{ gen.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        </span>
+                    </div>
+                    {% if gen.status == 'failed' and gen.error_message %}
+                        <div class="error-message">
+                            <span class="error-icon">⚠️</span>
+                            {{ gen.error_message[:80] }}{% if gen.error_message|length > 80 %}...{% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="history-actions">
+                    {% if gen.output_files and gen.status == 'completed' %}
+                        <button class="btn btn-small btn-primary" onclick="downloadFiles({{ gen.id }}, {{ gen.output_files | tojson }})">
+                            📥 Скачать
+                        </button>
+                        <button class="btn btn-small btn-secondary" onclick="openPreview({{ gen.id }})">
+                            👁️ Просмотр
+                        </button>
+                    {% endif %}
+                    <button class="btn btn-small btn-danger" onclick="confirmDeleteGeneration({{ gen.id }})">
+                        🗑️ Удалить
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if pagination and pagination.pages > 1 %}
+        <div class="pagination">
+            {% if pagination.has_prev %}
+                <a href="{{ url_for('history', page=pagination.prev_num) }}" class="pagination-link">
+                    ← Назад
+                </a>
+            {% else %}
+                <span class="pagination-link disabled">← Назад</span>
+            {% endif %}
+            
+            <div class="pagination-pages">
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pagination.page %}
+                            <span class="pagination-page active">{{ page_num }}</span>
+                        {% else %}
+                            <a href="{{ url_for('history', page=page_num) }}" class="pagination-page">{{ page_num }}</a>
+                        {% endif %}
+                    {% else %}
+                        <span class="pagination-ellipsis">...</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            
+            {% if pagination.has_next %}
+                <a href="{{ url_for('history', page=pagination.next_num) }}" class="pagination-link">
+                    Вперед →
+                </a>
+            {% else %}
+                <span class="pagination-link disabled">Вперед →</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+    {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">📭</span>
+            <h3>История пуста</h3>
+            <p>Здесь будут отображаться ваши генерации</p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                🎨 Создать первую генерацию
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal для просмотра -->
+<div class="modal" id="preview-modal">
+    <div class="modal-backdrop" onclick="closePreview()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">Просмотр</h3>
+            <button class="modal-close" onclick="closePreview()">×</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <!-- Content will be loaded dynamically -->
+        </div>
+        <div class="modal-footer" id="modal-footer">
+            <!-- Actions will be loaded dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal подтверждения -->
+<div class="modal" id="confirm-modal">
+    <div class="modal-backdrop" onclick="closeConfirmModal()"></div>
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3 id="confirm-title">Подтверждение</h3>
+            <button class="modal-close" onclick="closeConfirmModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <p id="confirm-message">Вы уверены?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeConfirmModal()">Отмена</button>
+            <button class="btn btn-danger" id="confirm-action-btn">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* History specific styles */
+.history-title {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.history-count {
+    background: var(--border);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.history-actions-header {
+    display: flex;
+    gap: 10px;
+}
+
+/* Filters */
+.history-filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    border-color: var(--primary);
+}
+
+.filter-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+/* Play overlay for videos */
+.play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(0,0,0,0.7);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.history-preview:hover .play-overlay {
+    opacity: 1;
+}
+
+/* Spinning animation */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spinning {
+    animation: spin 2s linear infinite;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+}
+
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+}
+
+.modal-content {
+    position: relative;
+    background: white;
+    border-radius: var(--radius);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: modalIn 0.3s ease;
+}
+
+.modal-small {
+    max-width: 400px;
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: var(--danger);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow: auto;
+    max-height: 70vh;
+}
+
+.modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Preview gallery in modal */
+.preview-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.preview-item {
+    position: relative;
+    border-radius: var(--radius-small);
+    overflow: hidden;
+}
+
+.preview-item img,
+.preview-item video {
+    width: 100%;
+    display: block;
+}
+
+.preview-item-actions {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+}
+
+/* Pagination improvements */
+.pagination-pages {
+    display: flex;
+    gap: 5px;
+}
+
+.pagination-page {
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text);
+    transition: all 0.2s;
+}
+
+.pagination-page:hover {
+    background: var(--border);
+}
+
+.pagination-page.active {
+    background: var(--primary);
+    color: white;
+}
+
+.pagination-ellipsis {
+    padding: 8px;
+    color: var(--text-muted);
+}
+
+.pagination-link.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+
+<script>
+// Данные генераций для модального окна
+const generationsData = {
+    {% for gen in generations %}
+    {{ gen.id }}: {
+        id: {{ gen.id }},
+        type: "{{ gen.generation_type }}",
+        status: "{{ gen.status }}",
+        prompt: {{ gen.prompt | tojson }},
+        negative_prompt: {{ (gen.negative_prompt or '') | tojson }},
+        model: "{{ gen.model_used or 'N/A' }}",
+        created_at: "{{ gen.created_at.strftime('%d.%m.%Y %H:%M') }}",
+        output_files: {{ (gen.output_files or []) | tojson }},
+        error_message: {{ (gen.error_message or '') | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+// Фильтрация
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const filter = this.dataset.filter;
+        
+        // Обновляем активную кнопку
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Фильтруем элементы
+        document.querySelectorAll('.history-item').forEach(item => {
+            if (filter === 'all' || item.dataset.type === filter) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+
+// Обновление страницы
+function refreshHistory() {
+    window.location.reload();
+}
+
+// Открыть превью
+function openPreview(genId) {
+    const gen = generationsData[genId];
+    if (!gen || gen.status !== 'completed' || !gen.output_files.length) {
+        return;
+    }
+    
+    const modal = document.getElementById('preview-modal');
+    const title = document.getElementById('modal-title');
+    const body = document.getElementById('modal-body');
+    const footer = document.getElementById('modal-footer');
+    
+    // Заголовок
+    const typeNames = {
+        'text-to-image': '📝 Изображение',
+        'text-to-video': '🎬 Видео',
+        'image-edit': '✏️ Редактирование'
+    };
+    title.textContent = typeNames[gen.type] || 'Просмотр';
+    
+    // Контент
+    let bodyHtml = `
+        <div class="preview-info" style="margin-bottom: 15px;">
+            <p><strong>Промпт:</strong> ${escapeHtml(gen.prompt)}</p>
+            ${gen.negative_prompt ? `<p><strong>Негативный:</strong> ${escapeHtml(gen.negative_prompt)}</p>` : ''}
+            <p><strong>Модель:</strong> ${gen.model} | <strong>Создано:</strong> ${gen.created_at}</p>
+        </div>
+        <div class="preview-gallery">
+    `;
+    
+    gen.output_files.forEach((file, idx) => {
+        const isVideo = gen.type === 'text-to-video' || file.endsWith('.mp4');
+        if (isVideo) {
+            bodyHtml += `
+                <div class="preview-item">
+                    <video src="/results/${file}" controls preload="metadata"></video>
+                    <div class="preview-item-actions">
+                        <a href="/results/${file}" download class="btn btn-small btn-primary">📥</a>
+                    </div>
+                </div>
+            `;
+        } else {
+            bodyHtml += `
+                <div class="preview-item">
+                    <img src="/results/${file}" alt="Result ${idx + 1}">
+                    <div class="preview-item-actions">
+                        <a href="/results/${file}" download class="btn btn-small btn-primary">📥</a>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    bodyHtml += '</div>';
+    body.innerHTML = bodyHtml;
+    
+    // Футер
+    footer.innerHTML = `
+        <button class="btn btn-secondary" onclick="closePreview()">Закрыть</button>
+        <button class="btn btn-primary" onclick="downloadFiles(${gen.id}, ${JSON.stringify(gen.output_files)})">
+            📥 Скачать всё (${gen.output_files.length})
+        </button>
+    `;
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+// Закрыть превью
+function closePreview() {
+    document.getElementById('preview-modal').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Скачать файлы
+function downloadFiles(genId, files) {
+    if (!files || !files.length) return;
+    
+    files.forEach((file, idx) => {
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = `/results/${file}`;
+            link.download = file;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }, idx * 300);
+    });
+    
+    showToast(`Скачивание ${files.length} файлов...`, 'info');
+}
+
+// Подтверждение удаления одной генерации
+function confirmDeleteGeneration(genId) {
+    const modal = document.getElementById('confirm-modal');
+    const title = document.getElementById('confirm-title');
+    const message = document.getElementById('confirm-message');
+    const actionBtn = document.getElementById('confirm-action-btn');
+    
+    title.textContent = 'Удаление генерации';
+    message.textContent = 'Вы уверены, что хотите удалить эту генерацию? Все связанные файлы будут удалены.';
+    
+    actionBtn.textContent = '🗑️ Удалить';
+    actionBtn.onclick = () => deleteGeneration(genId);
+    
+    modal.classList.add('active');
+}
+
+// Подтверждение очистки всей истории
+function confirmClearHistory() {
+    const modal = document.getElementById('confirm-modal');
+    const title = document.getElementById('confirm-title');
+    const message = document.getElementById('confirm-message');
+    const actionBtn = document.getElementById('confirm-action-btn');
+    
+    title.textContent = '⚠️ Очистка всей истории';
+    message.innerHTML = `
+        <strong>Внимание!</strong> Это действие нельзя отменить.<br><br>
+        Будут удалены:
+        <ul style="margin: 10px 0;">
+            <li>Все записи истории</li>
+            <li>Все загруженные изображения</li>
+            <li>Все результаты генераций</li>
+        </ul>
+        Вы уверены?
+    `;
+    
+    actionBtn.textContent = '🗑️ Удалить всё';
+    actionBtn.onclick = clearHistory;
+    
+    modal.classList.add('active');
+}
+
+// Закрыть модал подтверждения
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.remove('active');
+}
+
+// Удаление одной генерации
+async function deleteGeneration(genId) {
+    closeConfirmModal();
+    
+    try {
+        const response = await fetch(`/api/generation/${genId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            // Удаляем элемент из DOM с анимацией
+            const element = document.querySelector(`[data-id="${genId}"]`);
+            if (element) {
+                element.style.transition = 'all 0.3s ease';
+                element.style.opacity = '0';
+                element.style.transform = 'scale(0.9)';
+                
+                setTimeout(() => {
+                    element.remove();
+                    
+                    // Проверяем, остались ли элементы
+                    const remaining = document.querySelectorAll('.history-item');
+                    if (remaining.length === 0) {
+                        window.location.reload();
+                    }
+                }, 300);
+            }
+            
+            showToast('Генерация удалена', 'success');
+        } else {
+            const data = await response.json();
+            throw new Error(data.error || 'Не удалось удалить');
+        }
+    } catch (error) {
+        showToast('Ошибка: ' + error.message, 'error');
+    }
+}
+
+// Очистка всей истории
+async function clearHistory() {
+    closeConfirmModal();
+    
+    try {
+        const response = await fetch('/api/history/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            showToast('История очищена', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const data = await response.json();
+            throw new Error(data.error || 'Не удалось очистить историю');
+        }
+    } catch (error) {
+        showToast('Ошибка: ' + error.message, 'error');
+    }
+}
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    
+    const colors = {
+        success: { bg: '#c6f6d5', color: '#276749', icon: '✓' },
+        error: { bg: '#fed7d7', color: '#c53030', icon: '✗' },
+        warning: { bg: '#fef3c7', color: '#92400e', icon: '⚠' },
+        info: { bg: '#bee3f8', color: '#2c5282', icon: 'ℹ' }
+    };
+    
+    const style = colors[type] || colors.info;
+    
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        background: ${style.bg};
+        color: ${style.color};
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        max-width: 400px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    `;
+    
+    toast.innerHTML = `<span>${style.icon}</span><span>${message}</span>`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 600);
+    }, 4000);
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closePreview();
+        closeConfirmModal();
+    }
+});
+
+// Add animation styles
+const animStyles = document.createElement('style');
+animStyles.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(400px); opacity: 0; }
+    }
+`;
+document.head.appendChild(animStyles);
+</script>
+{% endblock %}
