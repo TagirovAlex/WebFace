@@ -1,8 +1,36 @@
-flask==3.0.0
-flask-sqlalchemy==3.1.1
-flask-login==0.6.3
-flask-bcrypt==1.0.1
-pillow==10.2.0
+# WebFace - ComfyUI Web Interface
+# SECURITY PATCHED VERSION
+
+# Core Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Database
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
+
+# Authentication & Security
+Flask-Login==0.6.3
+Flask-Bcrypt==1.0.1
+Flask-WTF==1.2.1          # NEW: CSRF Protection
+WTForms==3.1.1
+
+# Rate Limiting (NEW)
+Flask-Limiter==3.5.0
+
+# Image Processing
+Pillow==10.2.0
+
+# HTTP Client
 requests==2.31.0
+
+# Environment Variables
 python-dotenv==1.0.0
-werkzeug==3.0.1
+
+# Optional: MIME type detection (recommended)
+# Uncomment if you want enhanced file validation:
+# python-magic==0.4.27
+
+# Optional: Redis for rate limiting in production
+# Uncomment for production:
+# redis==5.0.1

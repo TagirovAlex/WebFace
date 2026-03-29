@@ -22,6 +22,9 @@
             {% endwith %}
             
             <form method="POST" action="{{ url_for('register') }}" class="auth-form">
+                <!-- CSRF Token для защиты от CSRF-атак -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
                 <div class="form-group">
                     <label for="username">Имя пользователя:</label>
                     <input type="text" id="username" name="username" required minlength="3" autocomplete="username">
