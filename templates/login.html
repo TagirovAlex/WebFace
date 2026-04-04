@@ -22,9 +22,6 @@
             {% endwith %}
             
             <form method="POST" action="{{ url_for('login') }}" class="auth-form">
-                <!-- CSRF Token для защиты от CSRF-атак -->
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                
                 <div class="form-group">
                     <label for="login">Логин или Email:</label>
                     <input type="text" id="login" name="login" required autocomplete="username">

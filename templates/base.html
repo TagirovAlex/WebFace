@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="ComfyUI Web Interface - Генерация изображений и видео с помощью AI">
-	<meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Image/Video Generator{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block extra_css %}{% endblock %}
@@ -12,6 +11,8 @@
 <body>
     <!-- Навбар ПЕРЕД основным контентом -->
     {% if current_user.is_authenticated %}
+	<button id="theme-toggle" aria-label="Toggle dark mode">🌓</button>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <nav class="navbar">
         <div class="nav-brand">🎨 Image/Video Generator</div>
         <div class="nav-user">
@@ -43,68 +44,6 @@
     <!-- Основной контент -->
     {% block body %}{% endblock %}
     
-	<script>
-    // ============================================
-    // CSRF Protection for AJAX/Fetch Requests
-    // ============================================
-    (function() {
-        // Получаем CSRF токен из мета-тега
-        const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
-        if (!csrfTokenMeta) {
-            console.warn('CSRF meta tag not found');
-            return;
-        }
-        const csrfToken = csrfTokenMeta.content;
-        
-        // Переопределяем fetch для автоматической отправки CSRF токена
-        const originalFetch = window.fetch;
-        window.fetch = function(url, options = {}) {
-            options.headers = options.headers || {};
-            
-            // Добавляем CSRF токен к POST/PUT/DELETE/PATCH запросам
-            const method = (options.method || 'GET').toUpperCase();
-            if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                if (options.headers instanceof Headers) {
-                    if (!options.headers.has('X-CSRFToken')) {
-                        options.headers.set('X-CSRFToken', csrfToken);
-                    }
-                } else if (Array.isArray(options.headers)) {
-                    const hasToken = options.headers.some(h => h[0] === 'X-CSRFToken');
-                    if (!hasToken) {
-                        options.headers.push(['X-CSRFToken', csrfToken]);
-                    }
-                } else {
-                    if (!options.headers['X-CSRFToken']) {
-                        options.headers['X-CSRFToken'] = csrfToken;
-                    }
-                }
-            }
-            
-            return originalFetch(url, options);
-        };
-        
-        // Также поддержка для XMLHttpRequest (если используется)
-        const originalXHROpen = XMLHttpRequest.prototype.open;
-        const originalXHRSend = XMLHttpRequest.prototype.send;
-        
-        XMLHttpRequest.prototype.open = function(method, url, ...args) {
-            this._method = method;
-            return originalXHROpen.call(this, method, url, ...args);
-        };
-        
-        XMLHttpRequest.prototype.send = function(data) {
-            const method = (this._method || 'GET').toUpperCase();
-            if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                this.setRequestHeader('X-CSRFToken', csrfToken);
-            }
-            return originalXHRSend.call(this, data);
-        };
-        
-        console.log('✓ CSRF protection initialized');
-    })();
-    </script>
-	
-	
     <!-- Скрипты в конце -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block extra_js %}{% endblock %}
