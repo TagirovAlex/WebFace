@@ -22,23 +22,38 @@
     --transition: all 0.3s ease;
 }
 
-.theme {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: Arial, sans-serif;
+.dark-theme {
+  --bg: #1e1e1e;
+  --text: #f0f0f0;
+  --border: #444;
+  --primary: #6682ff;
+  --primary-dark: #4a70f4;
+  --danger: #ff4d4d;
+  --info: #4caf50;
+  --text-muted: #aaa;
+  --radius: 8px;
+  --radius-small: 4px;
 }
 
 body.dark-theme {
-    --bg-color: #1a1a1a;
-    --text-color: #f0f0f0;
-    --header-bg: #2d2d2d;
-    --header-text: #fff;
-    --button-color: #b0b0b0;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
+/* Дополнительные стили для элементов */
+.dark-theme .btn {
+  background-color: var(--primary);
+  color: var(--text);
+}
 
+.dark-theme .file-upload {
+  border-color: var(--primary-dark);
+}
 
-
+.dark-theme .flash-message {
+  background-color: var(--bg);
+  color: var(--text);
+}
 
 
 
