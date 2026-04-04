@@ -48,18 +48,22 @@ WebFace/
 ├── setup.bat           # Скрипт установки для Windows
 ├── .env.example        # Пример файла окружения
 ├── static/
-│   ├── css/           # Стили
+│   ├── css/           		# Стили
 │   └── js/
-│       └── main.js    # Клиентский JavaScript
-├── templates/
-│   ├── base.html      # Базовый шаблон
-│   ├── index.html     # Главная страница
-│   ├── login.html     # Страница входа
-│   ├── register.html  # Страница регистрации
-│   ├── history.html   # История генераций
-│   └── admin/         # Админ-панель
-├── uploads/           # Загруженные изображения
-└── results/           # Результаты генерации
+│       └── main.js    		# Клиентский JavaScript
+├── templates\
+│   ├── admin\
+│   │   ├── dashboard.html				#Дашбоард генераций
+│   │   ├── generation_detail.html		#Детали генерации
+│   │   ├── generations.html			#список генераций
+│   │   └── users.html					#управление пользователем
+│   ├── base.html			# Базовый шаблон
+│   ├── history.html		# История генераций
+│   ├── index.html			# Главная страница
+│   ├── login.html			# Страница входа
+│   └── register.html		# Страница регистрации
+├── uploads/           		# Загруженные изображения
+└── results/           		# Результаты генерации
 ```
 
 ## 🚀 Установка
