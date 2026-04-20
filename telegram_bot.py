@@ -153,10 +153,13 @@ def format_user(user_id: int) -> str:
         balance = user.token_balance.balance if user.token_balance else 0
         gen_count = user.generations.count()
 
+        active_status = "Активен" if getattr(user, 'is_active', True) else "Заблокирован"
+
         return (
             f"<b>👤 Пользователь #{user.id}</b>\n\n"
             f"<b>Имя:</b> {user.username}\n"
             f"<b>Email:</b> {user.email}\n"
+            f"<b>Статус:</b> {active_status}\n"
             f"<b>Приоритет:</b> {priority_name}\n"
             f"<b>Токены:</b> {balance}\n"
             f"<b>Период токенов:</b> {user.token_period}\n"
@@ -182,6 +185,40 @@ def add_tokens(user_id: int, amount: int) -> str:
 
         db.session.commit()
         return f"Добавлено {amount} токенов пользователю {user.username}"
+
+
+def remove_tokens(user_id: int, amount: int) -> str:
+    """Remove tokens from user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        balance = user.token_balance
+        if not balance or balance.balance < amount:
+            return f"Недостаточно токенов"
+
+        balance.balance -= amount
+        db.session.commit()
+        return f"Списано {amount} токенов у {user.username}"
+
+
+def set_tokens(user_id: int, amount: int) -> str:
+    """Set token balance for user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        balance = user.token_balance
+        if not balance:
+            balance = TokenBalance(user_id=user_id, balance=amount)
+            db.session.add(balance)
+        else:
+            balance.balance = amount
+
+        db.session.commit()
+        return f"Установлено {amount} токенов для {user.username}"
 
 
 def set_limit(user_id: int, period: str, amount: int) -> str:
@@ -363,8 +400,8 @@ async def cmd_set_limit(message: Message):
         return
 
     parts = message.text.split()
-    if len(parts) < 4:
-        await message.answer("Использование: /set_limit <id> <period> <amount>")
+    if len(parts) < 3:
+        await message.answer("Использование: /set_limit <id> <period>")
         return
 
     try:
@@ -375,6 +412,50 @@ async def cmd_set_limit(message: Message):
         return
 
     await message.answer(set_limit(user_id, period, 0))
+
+
+@router.message(Command("remove_tokens"))
+async def cmd_remove_tokens(message: Message):
+    """Handle /remove_tokens command"""
+    if not await check_admin(message.chat.id):
+        await message.answer("Доступ запрещен")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer("Использование: /remove_tokens <id> <amount>")
+        return
+
+    try:
+        user_id = int(parts[1])
+        amount = int(parts[2])
+    except ValueError:
+        await message.answer("Неверные параметры")
+        return
+
+    await message.answer(remove_tokens(user_id, amount))
+
+
+@router.message(Command("set_tokens"))
+async def cmd_set_tokens(message: Message):
+    """Handle /set_tokens command"""
+    if not await check_admin(message.chat.id):
+        await message.answer("Доступ запрещен")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer("Использование: /set_tokens <id> <amount>")
+        return
+
+    try:
+        user_id = int(parts[1])
+        amount = int(parts[2])
+    except ValueError:
+        await message.answer("Неверные параметры")
+        return
+
+    await message.answer(set_tokens(user_id, amount))
 
 
 @router.message(Command("set_priority"))
@@ -439,6 +520,72 @@ async def cmd_toggle_admin(message: Message):
         return
 
     await message.answer(toggle_admin(user_id))
+
+
+def ban_user(user_id: int) -> str:
+    """Ban user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        user.is_active = False
+        db.session.commit()
+        return f"Пользователь {user.username} заблокирован"
+
+
+def unban_user(user_id: int) -> str:
+    """Unban user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        user.is_active = True
+        db.session.commit()
+        return f"Пользователь {user.username} разблокирован"
+
+
+@router.message(Command("ban"))
+async def cmd_ban(message: Message):
+    """Handle /ban command"""
+    if not await check_admin(message.chat.id):
+        await message.answer("Доступ запрещен")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Использование: /ban <id>")
+        return
+
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный ID пользователя")
+        return
+
+    await message.answer(ban_user(user_id))
+
+
+@router.message(Command("unban"))
+async def cmd_unban(message: Message):
+    """Handle /unban command"""
+    if not await check_admin(message.chat.id):
+        await message.answer("Доступ запрещен")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Использование: /unban <id>")
+        return
+
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный ID пользователя")
+        return
+
+    await message.answer(unban_user(user_id))
 
 
 async def notify_admin(text: str):
