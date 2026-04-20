@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block title %}Типы генераций - Админ-панель{% endblock %}
+
+{% block body %}
+<nav class="navbar">
+    <div class="nav-brand">🛡️ Админ-панель</div>
+    <div class="nav-user">
+        <a href="{{ url_for('admin_dashboard') }}" class="nav-link">📊 Дашборд</a>
+        <a href="{{ url_for('admin_generation_types') }}" class="nav-link">🎛️ Типы генераций</a>
+        <a href="{{ url_for('logout') }}" class="nav-link">Выйти</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h1>🎛️ Управление типами генераций</h1>
+
+    <div class="info-box">
+        <p>Включите или выключите типы генераций. Выключенные типы будут недоступны пользователям.
+        Также можно отредактировать название и описание.</p>
+    </div>
+
+    <div class="types-grid">
+        {% for gen_type in types %}
+        <div class="type-card {% if not gen_type.enabled %}type-disabled{% endif %}" data-id="{{ gen_type.id }}">
+            <div class="type-header">
+                <input type="text" class="type-name-input" value="{{ gen_type.name }}"
+                       onchange="updateTypeMeta({{ gen_type.id }}, 'name', this.value)"
+                       placeholder="Название">
+                <label class="toggle-switch">
+                    <input type="checkbox" {% if gen_type.enabled %}checked{% endif %}
+                           onchange="toggleType({{ gen_type.id }})">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <textarea class="type-description-input"
+                      onchange="updateTypeMeta({{ gen_type.id }}, 'description', this.value)"
+                      placeholder="Описание">{{ gen_type.description or '' }}</textarea>
+            <div class="type-status">
+                {% if gen_type.enabled %}
+                <span class="status-badge status-enabled">✅ Включён</span>
+                {% else %}
+                <span class="status-badge status-disabled">❌ Выключен</span>
+                {% endif %}
+                <span class="type-key">ID: {{ gen_type.type_key }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.info-box {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 15px 20px;
+    border-radius: 4px;
+    margin-bottom: 24px;
+}
+
+.info-box p {
+    margin: 0;
+    color: #1565c0;
+}
+
+.types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.type-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.type-card.type-disabled {
+    opacity: 0.7;
+    background: #f5f5f5;
+}
+
+.type-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.type-name-input {
+    flex: 1;
+    font-size: 1.1rem;
+    font-weight: bold;
+    padding: 8px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    background: white;
+}
+
+.type-name-input:focus {
+    outline: none;
+    border-color: #28a745;
+}
+
+.type-description-input {
+    width: 100%;
+    min-height: 60px;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    resize: vertical;
+    background: white;
+    margin-bottom: 10px;
+}
+
+.type-description-input:focus {
+    outline: none;
+    border-color: #28a745;
+}
+
+.type-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.type-key {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.status-enabled {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-disabled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Toggle switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #28a745;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+</style>
+
+<script>
+function toggleType(typeId) {
+    fetch('/admin/generation-types/' + typeId + '/toggle', {
+        method: 'POST'
+    })
+    .then(r => r.json())
+    .then(data => {
+        showToast(data.message, data.enabled ? 'success' : 'warning');
+    })
+    .catch(err => {
+        showToast('Ошибка: ' + err.message, 'error');
+        location.reload();
+    });
+}
+
+function updateTypeMeta(typeId, field, value) {
+    fetch('/admin/generation-types/' + typeId + '/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({field: field, value: value})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Сохранено', 'success');
+        }
+    })
+    .catch(err => {
+        showToast('Ошибка: ' + err.message, 'error');
+    });
+}
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    const colors = {
+        success: { bg: '#d4edda', color: '#155724' },
+        error: { bg: '#f8d7da', color: '#721c24' },
+        warning: { bg: '#fff3cd', color: '#856404' }
+    };
+    const style = colors[type] || colors.success;
+
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        background: ${style.bg};
+        color: ${style.color};
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-weight: 500;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(400px); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

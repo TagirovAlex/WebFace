@@ -16,24 +16,49 @@ except ImportError:
     pass
 
 
-class Config:
-    """Конфигурация приложения"""
-    
-    # ==================== SECURITY ====================
-    
-    # КРИТИЧНО: SECRET_KEY должен быть уникальным и секретным!
-    # Генерируется автоматически если не задан в переменных окружения
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        # В production ОБЯЗАТЕЛЬНО задавать через переменную окружения!
+def _load_or_create_secret_key():
+    """Загрузка или создание SECRET_KEY с сохранением в файл"""
+    env_key = os.environ.get('SECRET_KEY')
+    if env_key:
+        return env_key
+
+    secret_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.flask_secret')
+
+    if os.path.exists(secret_file):
+        try:
+            with open(secret_file, 'r') as f:
+                saved_key = f.read().strip()
+            if saved_key and len(saved_key) >= 32:
+                return saved_key
+        except (IOError, OSError):
+            pass
+
+    new_key = secrets.token_hex(32)
+
+    try:
+        with open(secret_file, 'w') as f:
+            f.write(new_key)
+        os.chmod(secret_file, 0o600)
+    except (IOError, OSError):
         import warnings
         warnings.warn(
-            "SECRET_KEY not set! Using auto-generated key. "
+            "Cannot save SECRET_KEY to file. Key will be regenerated on restart. "
             "Set SECRET_KEY environment variable for production!",
             RuntimeWarning
         )
-        SECRET_KEY = secrets.token_hex(32)
-    
+
+    return new_key
+
+
+class Config:
+    """Конфигурация приложения"""
+
+    # ==================== SECURITY ====================
+
+    # КРИТИЧНО: SECRET_KEY должен быть уникальным и секретным!
+    # Загружается из файла .flask_secret или переменной окружения
+    SECRET_KEY = _load_or_create_secret_key()
+
     # Дополнительная проверка безопасности ключа
     if len(SECRET_KEY) < 32:
         raise ValueError("SECRET_KEY must be at least 32 characters long!")
@@ -61,10 +86,16 @@ class Config:
     }
     
     # ==================== COMFYUI ====================
-    
+
     COMFY_URL = os.environ.get('COMFY_URL', 'http://127.0.0.1:8188')
     WORKFLOWS_DIR = os.environ.get('WORKFLOWS_DIR', 'workflows')
-    
+
+    # Timeout settings (in seconds)
+    COMFY_TIMEOUT_IMAGE = int(os.environ.get('COMFY_TIMEOUT_IMAGE', '300'))   # 5 min default
+    COMFY_TIMEOUT_VIDEO = int(os.environ.get('COMFY_TIMEOUT_VIDEO', '900'))   # 15 min default
+    COMFY_TIMEOUT_EDIT = int(os.environ.get('COMFY_TIMEOUT_EDIT', '600'))     # 10 min default
+    COMFY_TIMEOUT_MAX = int(os.environ.get('COMFY_TIMEOUT_MAX', '1800'))       # 30 min max
+
     # ==================== FILE UPLOADS ====================
     
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')

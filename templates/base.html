@@ -6,12 +6,14 @@
     <meta name="description" content="ComfyUI Web Interface - Генерация изображений и видео с помощью AI">
     <title>{% block title %}Image/Video Generator{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if dark_mode %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
+    {% endif %}
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body class="{% if dark_mode %}dark-theme{% endif %}">
     <!-- Навбар ПЕРЕД основным контентом -->
     {% if current_user.is_authenticated %}
-	
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <nav class="navbar">
         <div class="nav-brand">🎨 Image/Video Generator</div>
@@ -22,8 +24,9 @@
             <span class="user-greeting">👤 {{ current_user.username }}</span>
             <a href="{{ url_for('index') }}" class="nav-link">🏠 Главная</a>
             <a href="{{ url_for('history') }}" class="nav-link">📜 История</a>
+            <a href="{{ url_for('profile') }}" class="nav-link">⚙️ Настройки</a>
             <a href="{{ url_for('logout') }}" class="nav-link">🚪 Выйти</a>
-			<button id="theme-toggle" aria-label="Toggle dark mode">🌓</button>
+			<button id="theme-toggle" aria-label="Переключить тему" title="Сменить тему">🌙</button>
         </div>
     </nav>
     {% endif %}

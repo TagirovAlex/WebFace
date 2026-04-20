@@ -19,6 +19,7 @@ instance/
 # Environment
 .env
 .env.local
+.flask_secret
 
 # Uploads & Results
 uploads/*
@@ -37,3 +38,6 @@ results/*
 .DS_Store
 Thumbs.db
 project_structure.txt
+AGENTS.md
+TODO.md
+opencode.json

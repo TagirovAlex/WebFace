@@ -2,28 +2,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeToggle = document.getElementById('theme-toggle');
     const body = document.body;
 
+    if (!themeToggle) return;
+
+    const updateIcon = (isDark) => {
+        themeToggle.textContent = isDark ? '☀️' : '🌙';
+    };
+
     // Переключение темы
-    themeToggle.addEventListener('click', () => {
-        body.classList.toggle('dark-theme');
-        themeToggle.innerHTML = body.classList.contains('dark-theme') 
-            ? '☀️' 
-            : '🌃';
-    });
+    themeToggle.addEventListener('click', async () => {
+        const currentTheme = body.classList.contains('dark-theme') ? 'dark' : 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
 
-    // Загрузка сохраненной темы
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        body.classList.add('dark-theme');
-        themeToggle.innerHTML = '☀️';
-    } else {
-        body.classList.remove('dark-theme');
-        themeToggle.innerHTML = '🌃';
-    }
+        try {
+            const response = await fetch('/api/theme', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({theme: newTheme})
+            });
 
-    // Сохранение темы при изменении
-    body.addEventListener('click', (e) => {
-        if (e.target === themeToggle) {
-            localStorage.setItem('theme', body.classList.contains('dark-theme') ? 'dark' : 'light');
+            const data = await response.json();
+            if (data.success) {
+                body.classList.toggle('dark-theme');
+                updateIcon(newTheme === 'dark');
+            }
+        } catch (err) {
+            console.error('Failed to save theme:', err);
+            // Fallback to localStorage
+            localStorage.setItem('theme', newTheme);
+            body.classList.toggle('dark-theme');
+            updateIcon(newTheme === 'dark');
         }
     });
+
+    // Инициализация - синхронизация с сервером при загрузке
+    fetch('/api/theme')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.theme === 'dark') {
+                body.classList.add('dark-theme');
+            }
+            updateIcon(data.theme === 'dark');
+        })
+        .catch(() => {
+            // Fallback: localStorage
+            const saved = localStorage.getItem('theme');
+            if (saved === 'dark') {
+                body.classList.add('dark-theme');
+            }
+            updateIcon(saved === 'dark');
+        });
 });

@@ -34,7 +34,8 @@ except ImportError:
     print("[WARNING] python-magic not installed. Using basic file validation.")
 
 from config import Config
-from models import db, User, Generation
+from models import db, User, Generation, GenerationType, TokenBalance, TokenTransaction, Pricing, TokenRule, UserPriority
+from modules import ModuleRegistry
 
 # ==================== FLASK APP SETUP ====================
 
@@ -47,8 +48,32 @@ app.config.from_object(Config)
 csrf = CSRFProtect(app)
 
 # Rate Limiting
+def get_real_ip():
+    """Получение реального IP с защитой от spoofing"""
+    import flask
+    request = flask.request
+
+    # Проверяем X-Forwarded-For - только если есть trusted proxy
+    # Берем последний (самый дальний) IP в цепочке - это оригинальный клиент
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        # X-Forwarded-For: client, proxy1, proxy2
+        ips = [ip.strip() for ip in forwarded.split(',')]
+        if ips:
+            # Берем последний IP (оригинальный клиент после всех прокси)
+            return ips[-1]
+
+    # Проверяем X-Real-IP
+    real_ip = request.headers.get('X-Real-IP')
+    if real_ip:
+        return real_ip.strip()
+
+    # Фоллбек на remote address
+    return get_remote_address()
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_real_ip,
     app=app,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://"
@@ -62,6 +87,16 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите для доступа к этой странице'
 login_manager.session_protection = "strong"  # Дополнительная защита сессии
 
+
+@app.context_processor
+def inject_theme():
+    """Передача темы в шаблоны"""
+    from flask_login import current_user
+    if current_user.is_authenticated:
+        return {'dark_mode': current_user.theme == 'dark'}
+    return {'dark_mode': False}
+
+
 # Create folders if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['RESULTS_FOLDER'], exist_ok=True)
@@ -74,8 +109,8 @@ IMAGE_MIN_SIZE = 256
 IMAGE_MAX_SIZE = 1280
 IMAGE_SIZE_STEP = 64
 
-# Пресеты размеров для UI
-IMAGE_SIZE_PRESETS = [
+# Пресеты размеров для UI (валидируются при запуске)
+_IMAGE_SIZE_PRESETS_RAW = [
     {'name': 'Квадрат 1:1', 'width': 1024, 'height': 1024},
     {'name': 'Портрет 3:4', 'width': 768, 'height': 1024},
     {'name': 'Портрет 9:16', 'width': 720, 'height': 1280},
@@ -83,6 +118,22 @@ IMAGE_SIZE_PRESETS = [
     {'name': 'Пейзаж 16:9', 'width': 1280, 'height': 720},
     {'name': 'Маленький 512', 'width': 512, 'height': 512},
 ]
+
+# Валидация и фильтрация пресетов
+def _validate_presets():
+    max_dim = MAX_IMAGE_DIMENSION
+    validated = []
+    for preset in _IMAGE_SIZE_PRESETS_RAW:
+        w = min(preset['width'], max_dim)
+        h = min(preset['height'], max_dim)
+        # Округляем до кратности IMAGE_SIZE_STEP
+        w = (w // IMAGE_SIZE_STEP) * IMAGE_SIZE_STEP
+        h = (h // IMAGE_SIZE_STEP) * IMAGE_SIZE_STEP
+        if w >= IMAGE_MIN_SIZE and h >= IMAGE_MIN_SIZE:
+            validated.append({'name': preset['name'], 'width': w, 'height': h})
+    return validated
+
+IMAGE_SIZE_PRESETS = _validate_presets()
 
 # Безопасные MIME типы для изображений
 ALLOWED_MIME_TYPES = {
@@ -103,13 +154,13 @@ def load_user(user_id):
 @app.after_request
 def add_security_headers(response):
     """Добавление security headers ко всем ответам"""
-    # Content Security Policy
+    # Content Security Policy - без unsafe-inline
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "  # unsafe-inline для стилей оставляем (flask flash и динамические стили)
         "img-src 'self' data: blob:; "
-        "font-src 'self'; "
+        "font-src 'self' data:; "
         "frame-ancestors 'none'; "
         "form-action 'self';"
     )
@@ -370,27 +421,6 @@ def validate_image_dimensions(width, height):
 
 # ==================== HELPER FUNCTIONS ====================
 
-def allowed_file(filename):
-    """Проверка допустимого расширения файла"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
-
-def generate_unique_filename(original_filename):
-    """Генерация уникального имени файла"""
-    ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'png'
-    # Проверяем что расширение безопасное
-    if ext not in app.config['ALLOWED_EXTENSIONS']:
-        ext = 'png'
-    return f"{uuid.uuid4().hex}.{ext}"
-
-
-def sanitize_filename_for_display(filename):
-    """Очистка имени файла для безопасного отображения"""
-    # Удаляем потенциально опасные символы
-    safe = re.sub(r'[<>:"/\\|?*]', '', filename)
-    return safe[:255]  # Ограничиваем длину
-
-
 # ==================== ROUTES - PAGES ====================
 
 @app.route('/')
@@ -579,7 +609,187 @@ def admin_dashboard():
         recent_generations=recent_generations)
 
 
-@app.route('/admin/users')
+@app.route('/admin/generations')
+@app.route('/admin/generations/<int:user_id>')
+@admin_required
+def admin_generations(user_id=None):
+    """Список всех генераций"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+
+    query = Generation.query
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+
+    # Фильтры
+    status_filter = request.args.get('status')
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+
+    type_filter = request.args.get('type')
+    if type_filter:
+        query = query.filter_by(generation_type=type_filter)
+
+    # Показывать скрытые
+    show_hidden = request.args.get('show_hidden', 'false') == 'true'
+    if not show_hidden:
+        query = query.filter_by(hidden_from_user=False)
+
+    generations = query.order_by(Generation.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    # Статистика
+    stats = {
+        'total': Generation.query.count(),
+        'completed': Generation.query.filter_by(status='completed').count(),
+        'failed': Generation.query.filter_by(status='failed').count(),
+        'processing': Generation.query.filter_by(status='processing').count(),
+    }
+
+    users_list = User.query.order_by(User.username).all() if not user_id else None
+
+    return render_template('admin/generations.html',
+        generations=generations,
+        stats=stats,
+        users=users_list,
+        current_user_id=user_id,
+        current_status=status_filter,
+        current_type=type_filter,
+        show_hidden=show_hidden)
+
+
+@app.route('/admin/generation-types')
+@admin_required
+def admin_generation_types():
+    """Управление типами генераций"""
+    types = GenerationType.query.all()
+    return render_template('admin/generation_types.html', types=types)
+
+
+@app.route('/admin/tokens')
+@admin_required
+def admin_tokens():
+    """Управление токенами"""
+    users = User.query.order_by(User.username).all()
+    pricing = Pricing.query.all()
+    rules = TokenRule.query.all()
+    return render_template('admin/tokens.html', users=users, pricing=pricing, rules=rules)
+
+
+@app.route('/admin/user/<int:user_id>/tokens', methods=['POST'])
+@admin_required
+def admin_user_tokens(user_id):
+    """Управление токенами пользователя"""
+    user = User.query.get_or_404(user_id)
+    data = request.json or {}
+
+    if 'balance' in data:
+        balance = TokenBalance.query.filter_by(user_id=user_id).first()
+        if not balance:
+            balance = TokenBalance(user_id=user_id, balance=0)
+            db.session.add(balance)
+        balance.balance = int(data['balance'])
+        db.session.add(TokenTransaction(
+            user_id=user_id,
+            amount=int(data['balance']),
+            transaction_type='admin_set',
+            description='Manual balance set'
+        ))
+
+    if 'add' in data:
+        balance = TokenBalance.query.filter_by(user_id=user_id).first()
+        if not balance:
+            balance = TokenBalance(user_id=user_id, balance=0)
+            db.session.add(balance)
+        balance.balance += int(data['add'])
+        db.session.add(TokenTransaction(
+            user_id=user_id,
+            amount=int(data['add']),
+            transaction_type='admin_add',
+            description='Manual add'
+        ))
+
+    if 'priority' in data:
+        user.priority = int(data['priority'])
+
+    if 'token_period' in data:
+        user.token_period = data['token_period']
+
+    if 'reset_period' in data:
+        user.last_token_reset = datetime.utcnow()
+
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Сохранено'})
+
+
+@app.route('/admin/token-rule/<int:rule_id>/toggle', methods=['POST'])
+@admin_required
+def admin_token_rule_toggle(rule_id):
+    rule = TokenRule.query.get_or_404(rule_id)
+    rule.is_active = not rule.is_active
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Rule {"enabled" if rule.is_active else "disabled"}'})
+
+
+@app.route('/admin/token-rule/<int:rule_id>/delete', methods=['POST'])
+@admin_required
+def admin_token_rule_delete(rule_id):
+    rule = TokenRule.query.get_or_404(rule_id)
+    db.session.delete(rule)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Rule deleted'})
+
+
+@app.route('/admin/generation-types/<int:type_id>/toggle', methods=['POST'])
+@admin_required
+def admin_toggle_generation_type(type_id):
+    """Включение/выключение типа генерации"""
+    gen_type = GenerationType.query.get_or_404(type_id, description=f'Type id:{type_id} not found')
+    gen_type.enabled = not gen_type.enabled
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'enabled': gen_type.enabled,
+        'message': f'{gen_type.name} {"включён" if gen_type.enabled else "выключен"}'
+    })
+
+
+@app.route('/admin/generation-types/<int:type_id>/update', methods=['POST'])
+@admin_required
+def admin_update_generation_type(type_id):
+    """Обновление метаданных типа генерации"""
+    gen_type = GenerationType.query.get_or_404(type_id, description=f'Type id:{type_id} not found')
+    data = request.json or {}
+
+    field = data.get('field')
+    value = data.get('value')
+
+    if field == 'name':
+        gen_type.name = value
+    elif field == 'description':
+        gen_type.description = value
+    else:
+        return jsonify({'success': False, 'error': 'Unknown field'}), 400
+
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Сохранено'})
+
+
+@app.route('/api/generation-types')
+@login_required
+def api_generation_types():
+    """Получение доступных типов генераций"""
+    types = GenerationType.query.filter_by(enabled=True).all()
+    return jsonify({
+        'success': True,
+        'types': [{'key': t.type_key, 'name': t.name, 'description': t.description} for t in types]
+    })
+
+
+@app.route('/users')
 @admin_required
 def admin_users():
     """Управление пользователями"""
@@ -591,7 +801,7 @@ def admin_users():
 @admin_required
 def admin_user_detail(user_id):
     """Детальная информация о пользователе"""
-    user = User.query.get_or_404(user_id)
+    user = User.query.get_or_404(user_id, description=f'User id:{user_id} not found')
     generations = Generation.query.filter_by(user_id=user_id).order_by(Generation.created_at.desc()).limit(50).all()
     return render_template('admin/user_detail.html', user=user, generations=generations)
 
@@ -603,7 +813,7 @@ def admin_toggle_admin(user_id):
     if user_id == current_user.id:
         return jsonify({'error': 'Нельзя изменить свой статус'}), 400
 
-    user = User.query.get_or_404(user_id)
+    user = User.query.get_or_404(user_id, description=f'User id:{user_id} not found')
     user.is_admin = not user.is_admin
     db.session.commit()
 
@@ -621,7 +831,7 @@ def admin_delete_user(user_id):
     if user_id == current_user.id:
         return jsonify({'error': 'Нельзя удалить себя'}), 400
 
-    user = User.query.get_or_404(user_id)
+    user = User.query.get_or_404(user_id, description=f'User id:{user_id} not found')
 
     # Удаляем все генерации пользователя (с файлами)
     generations = Generation.query.filter_by(user_id=user_id).all()
@@ -643,7 +853,7 @@ def admin_delete_user(user_id):
 @admin_required
 def admin_view_generation(generation_id):
     """Просмотр генерации администратором"""
-    generation = Generation.query.get_or_404(generation_id)
+    generation = Generation.query.get_or_404(generation_id, description=f'Generation id:{generation_id} not found')
     return render_template('admin/generation_detail.html', generation=generation)
 
 
@@ -651,7 +861,7 @@ def admin_view_generation(generation_id):
 @admin_required
 def admin_delete_generation(generation_id):
     """Полное удаление генерации (с файлами)"""
-    generation = Generation.query.get_or_404(generation_id)
+    generation = Generation.query.get_or_404(generation_id, description=f'Generation id:{generation_id} not found')
 
     delete_generation_files(generation)
     db.session.delete(generation)
@@ -667,7 +877,7 @@ def admin_delete_generation(generation_id):
 @admin_required
 def admin_restore_generation(generation_id):
     """Восстановление скрытой генерации"""
-    generation = Generation.query.get_or_404(generation_id)
+    generation = Generation.query.get_or_404(generation_id, description=f'Generation id:{generation_id} not found')
     generation.hidden_from_user = False
     db.session.commit()
 
@@ -726,11 +936,6 @@ def api_generate_image():
     model = data.get('model', 'wan22')
     seed = data.get('seed', None)
 
-    # Получаем и валидируем размеры
-    width = data.get('width', 1024)
-    height = data.get('height', 1024)
-    width, height = validate_image_dimensions(width, height)
-
     if not prompt:
         return jsonify({'error': 'Промпт обязателен'}), 400
 
@@ -738,14 +943,30 @@ def api_generate_image():
     if model not in app.config.get('MODELS', {}):
         model = 'wan22'
 
-    # Валидация seed
+    # Проверка что тип генерации включён
+    gen_type = GenerationType.query.filter_by(type_key=model, enabled=True).first()
+    if not gen_type:
+        return jsonify({'error': 'Тип генерации временно недоступен'}), 403
+
+    # Валидация размеров
+    width = data.get('width', 1024)
+    height = data.get('height', 1024)
+    width, height = validate_image_dimensions(width, height)
+
+    # Валидация seed - возвращаем ошибку если некорректный
     if seed is not None:
         try:
             seed = int(seed)
             if seed < 0 or seed > 2**32 - 1:
-                seed = None
+                return jsonify({'error': 'Seed должен быть в диапазоне 0-4294967295'}), 400
         except (ValueError, TypeError):
-            seed = None
+            return jsonify({'error': 'Некорректный формат seed'}), 400
+
+    # Проверка токенов
+    apply_token_rules(current_user)
+    has_tokens, cost, token_msg = check_and_spend_tokens(current_user.id, model, width, height)
+    if not has_tokens:
+        return jsonify({'error': token_msg, 'code': 'INSUFFICIENT_TOKENS', 'balance': get_user_balance(current_user.id)}), 402
 
     generation = Generation(
         user_id=current_user.id,
@@ -794,6 +1015,11 @@ def api_generate_video():
 
     if not prompt:
         return jsonify({'error': 'Промпт обязателен'}), 400
+
+    # Проверка что тип генерации включён
+    gen_type = GenerationType.query.filter_by(type_key=model, enabled=True).first()
+    if not gen_type:
+        return jsonify({'error': 'Тип генерации временно недоступен'}), 403
 
     generation = Generation(
         user_id=current_user.id,
@@ -876,6 +1102,19 @@ def api_edit_images():
     edit_type = 'qwen_single' if len(saved_files) == 1 else 'qwen_multi'
     print(f"[EDIT] Files: {len(saved_files)}, workflow: {edit_type}")
 
+    # Проверка что тип генерации включён
+    gen_type = GenerationType.query.filter_by(type_key=edit_type, enabled=True).first()
+    if not gen_type:
+        # Удаляем загруженные файлы
+        for f in saved_files:
+            try:
+                safe_path = secure_path_check(app.config['UPLOAD_FOLDER'], f)
+                if safe_path and os.path.exists(safe_path):
+                    os.remove(safe_path)
+            except:
+                pass
+        return jsonify({'error': 'Тип генерации временно недоступен'}), 403
+
     generation = Generation(
         user_id=current_user.id,
         generation_type='image-edit',
@@ -917,6 +1156,24 @@ def api_image_presets():
         'max_size': IMAGE_MAX_SIZE,
         'step': IMAGE_SIZE_STEP
     })
+
+
+@app.route('/api/theme', methods=['GET', 'POST'])
+@login_required
+def api_theme():
+    """Получение/изменение темы пользователя"""
+    if request.method == 'POST':
+        data = request.json or {}
+        theme = data.get('theme', 'light')
+        if theme not in ('light', 'dark'):
+            return jsonify({'error': 'Неверная тема'}), 400
+
+        current_user.theme = theme
+        db.session.commit()
+
+        return jsonify({'success': True, 'theme': theme})
+
+    return jsonify({'success': True, 'theme': current_user.theme or 'light'})
 
 
 @app.route('/api/generation/<int:generation_id>/status')
@@ -1043,7 +1300,6 @@ def api_clear_history():
 @login_required
 def serve_result(filename):
     """Отдача результатов"""
-    # Безопасная проверка пути
     filepath = secure_path_check(app.config['RESULTS_FOLDER'], filename)
     if filepath and os.path.exists(filepath):
         return send_from_directory(app.config['RESULTS_FOLDER'], secure_filename(filename))
@@ -1054,42 +1310,223 @@ def serve_result(filename):
 @login_required
 def serve_upload(filename):
     """Отдача загруженных файлов"""
-    # Безопасная проверка пути
     filepath = secure_path_check(app.config['UPLOAD_FOLDER'], filename)
     if filepath and os.path.exists(filepath):
         return send_from_directory(app.config['UPLOAD_FOLDER'], secure_filename(filename))
     return jsonify({'error': 'Файл не найден'}), 404
 
 
+@app.route('/download/<filename>')
+@login_required
+def download_file(filename):
+    """Скачивание файла"""
+    # Сначала пробуем results, потом uploads
+    filepath = secure_path_check(app.config['RESULTS_FOLDER'], filename)
+    folder = app.config['RESULTS_FOLDER']
+    if not filepath or not os.path.exists(filepath):
+        filepath = secure_path_check(app.config['UPLOAD_FOLDER'], filename)
+        folder = app.config['UPLOAD_FOLDER']
+
+    if filepath and os.path.exists(filepath):
+        return send_from_directory(folder, secure_filename(filename), as_attachment=True)
+    return jsonify({'error': 'Файл не найден'}), 404
+
+
+# ==================== TOKEN FUNCTIONS ====================
+
+def get_user_balance(user_id):
+    """Получить баланс пользователя"""
+    balance = TokenBalance.query.filter_by(user_id=user_id).first()
+    if not balance:
+        balance = TokenBalance(user_id=user_id, balance=0)
+        db.session.add(balance)
+        db.session.commit()
+    return balance.balance
+
+
+def check_and_spend_tokens(user_id, generation_type, width=0, height=0, duration=0):
+    """
+    Проверить баланс и списать токены.
+    Returns (success, cost, message)
+    """
+    if current_user.is_admin:
+        return True, 0, "Admin bypass"
+
+    # Получаем цену из модуля или Pricing модели
+    pricing = Pricing.query.filter_by(module_key=generation_type).first()
+    if pricing:
+        cost = pricing.calculate_cost(width, height, duration)
+    else:
+        cost = 10  # Default cost
+
+    balance = get_user_balance(user_id)
+
+    if balance < cost:
+        return False, 0, f"Недостаточно токенов. Нужно {cost}, у вас {balance}"
+
+    # Списываем токены
+    balance_record = TokenBalance.query.filter_by(user_id=user_id).first()
+    balance_record.balance -= cost
+    balance_record.updated_at = datetime.utcnow()
+
+    transaction = TokenTransaction(
+        user_id=user_id,
+        amount=-cost,
+        transaction_type='generation',
+        description=f'Generation {generation_type}: {width}x{height}'
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    return True, cost, f"Списано {cost} токенов"
+
+
+def refund_tokens(user_id, amount, generation_id, reason="Refund"):
+    """Вернуть токены (при ошибке генерации)"""
+    balance = TokenBalance.query.filter_by(user_id=user_id).first()
+    if not balance:
+        return
+
+    balance.balance += amount
+
+    transaction = TokenTransaction(
+        user_id=user_id,
+        amount=amount,
+        transaction_type='refund',
+        description=reason,
+        generation_id=generation_id
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+
+def get_user_priority(user):
+    """Получить приоритет пользователя"""
+    if user.is_admin:
+        return UserPriority.ADMIN
+    return user.priority or UserPriority.NORMAL
+
+
+def apply_token_rules(user):
+    """Применить правила начисления токенов по периоду"""
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    period = user.token_period or 'monthly'
+
+    # Проверяем нужно ли начислить
+    last_reset = user.last_token_reset or user.created_at
+    days_since_reset = (now - last_reset).days
+
+    should_reset = False
+    if period == 'daily':
+        should_reset = days_since_reset >= 1
+    elif period == 'weekly':
+        should_reset = days_since_reset >= 7
+    elif period == 'monthly':
+        should_reset = days_since_reset >= 30
+
+    if not should_reset:
+        return
+
+    # Начисляем по активным правилам
+    active_rules = TokenRule.query.filter_by(is_active=True).all()
+    total_amount = 0
+
+    for rule in active_rules:
+        if rule.max_uses and rule.uses_count >= rule.max_uses:
+            continue
+
+        total_amount += rule.amount
+        rule.uses_count += 1
+
+    if total_amount > 0:
+        balance = get_user_balance(user.id)
+        balance_record = TokenBalance.query.filter_by(user_id=user.id).first()
+        balance_record.balance += total_amount
+        balance_record.updated_at = now
+
+        transaction = TokenTransaction(
+            user_id=user.id,
+            amount=total_amount,
+            transaction_type='rule_bonus',
+            description=f'Bonus: {rule.name}'
+        )
+        db.session.add(transaction)
+
+        user.last_token_reset = now
+        db.session.commit()
+        print(f"[TOKENS] Added {total_amount} tokens to user {user.username}")
+
+
+def initialize_pricing():
+    """Инициализация цен по умолчанию"""
+    default_pricing = [
+        ('wan22', 10, 1, 1, 0),       # text-to-image: 10 + за каждые 256px
+        ('wan22_video', 20, 0, 0, 5),  # video: 20 + за секунду
+        ('qwen_single', 15, 1, 1, 0),
+        ('qwen_multi', 25, 2, 2, 0),
+    ]
+
+    for module_key, base, w, h, sec in default_pricing:
+        if not Pricing.query.filter_by(module_key=module_key).first():
+            pricing = Pricing(
+                module_key=module_key,
+                base_cost=base,
+                cost_per_width=w,
+                cost_per_height=h,
+                cost_per_second=sec
+            )
+            db.session.add(pricing)
+
+    db.session.commit()
+
+
 # ==================== WORKFLOW FUNCTIONS ====================
 
 def load_workflow(workflow_type, model_name):
-    """Загрузка workflow из файла"""
+    """
+    Загрузка workflow из модуля.
+    Использует ModuleRegistry если доступно, иначе legacy file loading.
+    """
+    # Пробуем сначала из модулей
+    module = ModuleRegistry.get(model_name)
+    if module:
+        print(f"[WORKFLOW] Loading from module: {model_name}")
+        return module.get_workflow()
+
+    # Fallback на старый метод загрузки из файлов
+    print(f"[WORKFLOW] Loading from file (legacy): {model_name}")
     workflows_dir = app.config.get('WORKFLOWS_DIR', 'workflows')
-    
-    # Безопасная загрузка (предотвращение path traversal)
+
     safe_model_name = re.sub(r'[^a-zA-Z0-9_-]', '', model_name)
     safe_workflow_type = re.sub(r'[^a-zA-Z0-9_-]', '', workflow_type)
-    
+
     filename = f"{safe_workflow_type}_{safe_model_name}.json"
     filepath = secure_path_check(workflows_dir, filename)
-    
-    if not filepath:
-        raise FileNotFoundError(f"Небезопасный путь к workflow: {filename}")
-    
-    if not os.path.exists(filepath):
-        # Fallback на дефолтный
+
+    if not filepath or not os.path.exists(filepath):
         filename = f"{safe_workflow_type}_default.json"
         filepath = secure_path_check(workflows_dir, filename)
-        
+
         if not filepath or not os.path.exists(filepath):
             raise FileNotFoundError(f"Workflow not found: {filename}")
-
-    print(f"[WORKFLOW] Loading: {filepath}")
 
     with open(filepath, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
 
+    return workflow
+
+
+def prepare_workflow_with_module(module, workflow, prompt, negative_prompt="", **kwargs):
+    """
+    Подготовка workflow с использованием модуля.
+    Использует module.prepare_workflow если доступно.
+    """
+    if hasattr(module, 'prepare_workflow'):
+        return module.prepare_workflow(workflow, prompt, negative_prompt, **kwargs)
+
+    # Legacy метод - просто возвращает как есть
     return workflow
 
 
@@ -1531,7 +1968,11 @@ def upload_image_to_comfy(filepath, filename):
     return uploaded_name
 
 
-def wait_for_comfy_result(prompt_id, is_video=False, timeout=3000):
+def wait_for_comfy_result(prompt_id, is_video=False, timeout=None):
+    """Ожидание результата от ComfyUI"""
+    if timeout is None:
+        max_timeout = app.config.get('COMFY_TIMEOUT_MAX', 1800)
+        timeout = max_timeout
     """Ожидание результата от ComfyUI"""
     start_time = time.time()
     last_status = None
@@ -1689,12 +2130,71 @@ def get_generation_files_size(generation):
     return total_size
 
 
+def get_generation_file_paths(generation, file_type='all'):
+    """
+    Получение списка файлов генерации с безопасными путями.
+
+    Args:
+        generation: объект Generation
+        file_type: 'input', 'output' или 'all'
+
+    Returns:
+        list of tuples: [(filepath, folder_name), ...]
+    """
+    files = []
+
+    if file_type in ('input', 'all') and generation.input_files:
+        folder = app.config['UPLOAD_FOLDER']
+        for filename in generation.input_files:
+            filepath = secure_path_check(folder, filename)
+            if filepath and os.path.exists(filepath):
+                files.append((filepath, folder))
+
+    if file_type in ('output', 'all') and generation.output_files:
+        folder = app.config['RESULTS_FOLDER']
+        for filename in generation.output_files:
+            filepath = secure_path_check(folder, filename)
+            if filepath and os.path.exists(filepath):
+                files.append((filepath, folder))
+
+    return files
+
+
+def delete_generation_files(generation):
+    """Удаление файлов генерации"""
+    deleted = []
+
+    for filepath, folder in get_generation_file_paths(generation):
+        try:
+            os.remove(filepath)
+            deleted.append(os.path.basename(filepath))
+        except Exception as e:
+            print(f"[FILES] Error deleting {os.path.basename(filepath)}: {e}")
+
+    if deleted:
+        print(f"[FILES] Deleted {len(deleted)} files")
+
+    return deleted
+
+
+def get_generation_files_size(generation):
+    """Получение размера файлов генерации"""
+    total_size = 0
+
+    for filepath, folder in get_generation_file_paths(generation):
+        try:
+            total_size += os.path.getsize(filepath)
+        except OSError:
+            pass
+
+    return total_size
+
+
 def cleanup_orphan_files():
     """Удаление файлов-сирот (не связанных с генерациями)"""
     deleted_count = 0
     freed_space = 0
 
-    # Собираем все файлы из генераций
     all_input_files = set()
     all_output_files = set()
 
@@ -1704,33 +2204,19 @@ def cleanup_orphan_files():
         if gen.output_files:
             all_output_files.update(gen.output_files)
 
-    # Проверяем uploads
-    uploads_dir = app.config['UPLOAD_FOLDER']
-    if os.path.exists(uploads_dir):
-        for filename in os.listdir(uploads_dir):
-            if filename not in all_input_files:
-                filepath = secure_path_check(uploads_dir, filename)
-                if filepath and os.path.exists(filepath):
-                    try:
-                        freed_space += os.path.getsize(filepath)
-                        os.remove(filepath)
-                        deleted_count += 1
-                    except:
-                        pass
-
-    # Проверяем results
-    results_dir = app.config['RESULTS_FOLDER']
-    if os.path.exists(results_dir):
-        for filename in os.listdir(results_dir):
-            if filename not in all_output_files:
-                filepath = secure_path_check(results_dir, filename)
-                if filepath and os.path.exists(filepath):
-                    try:
-                        freed_space += os.path.getsize(filepath)
-                        os.remove(filepath)
-                        deleted_count += 1
-                    except:
-                        pass
+    for folder_name, tracked_files in [('UPLOAD_FOLDER', all_input_files), ('RESULTS_FOLDER', all_output_files)]:
+        folder = app.config[folder_name]
+        if os.path.exists(folder):
+            for filename in os.listdir(folder):
+                if filename not in tracked_files:
+                    filepath = secure_path_check(folder, filename)
+                    if filepath and os.path.exists(filepath):
+                        try:
+                            freed_space += os.path.getsize(filepath)
+                            os.remove(filepath)
+                            deleted_count += 1
+                        except OSError:
+                            pass
 
     return deleted_count, freed_space
 
@@ -1758,7 +2244,8 @@ def process_image_generation(generation_id, prompt, negative_prompt, model, seed
             client_id = f"user_{generation.user_id}_{generation_id}"
             prompt_id = send_workflow_to_comfy(workflow, client_id, force_seed=seed)
 
-            output_files = wait_for_comfy_result(prompt_id, is_video=False, timeout=300)
+            timeout = app.config.get('COMFY_TIMEOUT_IMAGE', 300)
+            output_files = wait_for_comfy_result(prompt_id, is_video=False)
             saved_results = save_results_from_comfy(output_files, is_video=False)
 
             generation.output_files = saved_results
@@ -1771,10 +2258,12 @@ def process_image_generation(generation_id, prompt, negative_prompt, model, seed
             generation.status = 'failed'
             generation.error_message = str(e)
             print(f"\n[IMAGE] ✗ #{generation_id} FAILED: {e}\n")
-            import traceback
-            traceback.print_exc()
+            refund_tokens(generation.user_id, 10, generation.id, "Generation failed")
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            print(f"\n[IMAGE] ✗ #{generation_id} DB commit failed: {e}\n")
 
 
 def process_video_generation(generation_id, prompt, negative_prompt, model, duration):
@@ -1797,8 +2286,8 @@ def process_video_generation(generation_id, prompt, negative_prompt, model, dura
             client_id = f"user_{generation.user_id}_{generation_id}"
             prompt_id = send_workflow_to_comfy(workflow, client_id)
 
-            timeout = 120 + (duration * 60)
-            output_files = wait_for_comfy_result(prompt_id, is_video=True, timeout=timeout)
+            timeout = min(120 + (duration * 60), app.config.get('COMFY_TIMEOUT_MAX', 1800))
+            output_files = wait_for_comfy_result(prompt_id, is_video=True)
             saved_results = save_results_from_comfy(output_files, is_video=True)
 
             generation.output_files = saved_results
@@ -1811,10 +2300,11 @@ def process_video_generation(generation_id, prompt, negative_prompt, model, dura
             generation.status = 'failed'
             generation.error_message = str(e)
             print(f"\n[VIDEO] ✗ #{generation_id} FAILED: {e}\n")
-            import traceback
-            traceback.print_exc()
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            print(f"\n[VIDEO] ✗ #{generation_id} DB commit failed: {e}\n")
 
 
 def process_image_edit(generation_id, input_files, edit_type, prompt, negative_prompt):
@@ -1859,7 +2349,8 @@ def process_image_edit(generation_id, input_files, edit_type, prompt, negative_p
             prompt_id = send_workflow_to_comfy(workflow, client_id)
 
             # Ждём результат
-            output_files = wait_for_comfy_result(prompt_id, is_video=False, timeout=600)
+            timeout = app.config.get('COMFY_TIMEOUT_EDIT', 600)
+            output_files = wait_for_comfy_result(prompt_id, is_video=False)
             saved_results = save_results_from_comfy(output_files, is_video=False)
 
             generation.output_files = saved_results
@@ -1872,10 +2363,12 @@ def process_image_edit(generation_id, input_files, edit_type, prompt, negative_p
             generation.status = 'failed'
             generation.error_message = str(e)
             print(f"\n[EDIT] ✗ #{generation_id} FAILED: {e}\n")
-            import traceback
-            traceback.print_exc()
+            refund_tokens(generation.user_id, 15, generation.id, "Edit generation failed")
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            print(f"\n[EDIT] ✗ #{generation_id} DB commit failed: {e}\n")
 
 
 # ==================== MAIN ====================
@@ -1898,6 +2391,27 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         print("✓ Database initialized")
+
+        # Инициализация типов генераций если пусто
+        if GenerationType.query.count() == 0:
+            default_types = [
+                ('wan22', 'WAN 2.2', 'Генерация изображений из текста'),
+                ('wan22_video', 'WAN 2.2 Video', 'Генерация видео из текста'),
+                ('qwen_single', 'Qwen Single', 'Редактирование одного изображения'),
+                ('qwen_multi', 'Qwen Multi', 'Редактирование нескольких изображений'),
+            ]
+            for type_key, name, desc in default_types:
+                db.session.add(GenerationType(type_key=type_key, name=name, description=desc, enabled=True))
+            db.session.commit()
+            print(f"✓ Generation types initialized")
+
+        # Инициализация модулей
+        ModuleRegistry.initialize()
+        print(f"✓ Modules initialized: {len(ModuleRegistry.get_all())} modules")
+
+        # Инициализация цен
+        initialize_pricing()
+        print(f"✓ Pricing initialized")
 
         # Проверяем есть ли администратор
         admin_count = User.query.filter_by(is_admin=True).count()
