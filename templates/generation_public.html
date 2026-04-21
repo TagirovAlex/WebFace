@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Генерация #{{ generation.id }}{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <div class="history-header">
+        <div class="history-title">
+            <h1>🖼️ Генерация #{{ generation.id }}</h1>
+            <span class="history-author">
+                Автор: <a href="{{ url_for('user_gallery', username=generation.user.username) }}">{{ generation.user.username }}</a>
+            </span>
+        </div>
+    </div>
+    
+    <div class="generation-view">
+        <div class="generation-type-badge">
+            {% if generation.generation_type == 'text-to-image' %}📝 Изображение
+            {% elif generation.generation_type == 'text-to-video' %}🎬 Видео
+            {% else %}✏️ Редактирование{% endif %}
+        </div>
+        
+        <div class="generation-prompt">
+            <h3>Промпт</h3>
+            <p>{{ generation.prompt }}</p>
+        </div>
+        
+        {% if generation.negative_prompt %}
+        <div class="generation-negative">
+            <h3>Негативный промпт</h3>
+            <p>{{ generation.negative_prompt }}</p>
+        </div>
+        {% endif %}
+        
+        <div class="generation-gallery">
+            {% if generation.output_files %}
+                {% for file in generation.output_files %}
+                    {% if generation.generation_type == 'text-to-video' %}
+                        <video src="/r/{{ file }}" controls class="result-media"></video>
+                    {% else %}
+                        <img src="/r/{{ file }}" alt="Result {{ loop.index }}" class="result-media">
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
+        
+        <div class="generation-meta">
+            <span>Создано: {{ generation.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+        </div>
+    </div>
+</div>
+
+<style>
+.generation-view {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.generation-type-badge {
+    display: inline-block;
+    padding: 5px 15px;
+    background: var(--primary);
+    color: white;
+    border-radius: 20px;
+    margin-bottom: 20px;
+}
+
+.generation-prompt, .generation-negative {
+    margin-bottom: 20px;
+}
+
+.generation-prompt h3, .generation-negative h3 {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+.generation-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.result-media {
+    width: 100%;
+    border-radius: var(--radius);
+}
+
+.generation-meta {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+</style>
+
+{% endblock %}

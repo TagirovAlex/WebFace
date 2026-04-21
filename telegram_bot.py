@@ -319,6 +319,77 @@ async def cmd_start(message: Message):
     )
 
 
+def link_telegram_account(user_id: int, chat_id: int) -> str:
+    """Link Telegram account to user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        user.telegram_chat_id = str(chat_id)
+        db.session.commit()
+        return f"Аккаунт Telegram привязан к {user.username}"
+
+
+def unlink_telegram_account(user_id: int) -> str:
+    """Unlink Telegram account from user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return f"Пользователь {user_id} не найден"
+
+        user.telegram_chat_id = None
+        db.session.commit()
+        return f"Аккаунт Telegram отвязан от {user.username}"
+
+
+@router.message(Command("link"))
+async def cmd_link(message: Message):
+    """Handle /link command - link telegram to user account"""
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Использование: /link <user_id>")
+        return
+
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный ID пользователя")
+        return
+
+    result = link_telegram_account(user_id, message.chat.id)
+    await message.answer(result)
+
+
+@router.message(Command("unlink"))
+async def cmd_unlink(message: Message):
+    """Handle /unlink command"""
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Использование: /unlink <user_id>")
+        return
+
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный ID пользователя")
+        return
+
+    result = unlink_telegram_account(user_id)
+    await message.answer(result)
+
+
+async def notify_admin_new_gen(gen_type: str, username: str):
+    """Notify admin of new generation (F6.5)"""
+    if not ADMIN_CHAT_ID:
+        return
+    try:
+        text = f"🆕 Новая генерация\n\nUser: {username}\nType: {gen_type}"
+        await bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=text)
+    except Exception as e:
+        logger.error(f"Failed to notify admin: {e}")
+
+
 @router.message(Command("stats"))
 async def cmd_stats(message: Message):
     """Handle /stats command"""
@@ -588,6 +659,17 @@ async def cmd_unban(message: Message):
     await message.answer(unban_user(user_id))
 
 
+async def notify_user(user_id: int, text: str):
+    """Send notification to user"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if user and user.telegram_chat_id and user.notify_on_complete:
+            try:
+                await bot.send_message(chat_id=int(user.telegram_chat_id), text=text)
+            except Exception as e:
+                logger.error(f"Failed to send user notification: {e}")
+
+
 async def notify_admin(text: str):
     """Send notification to admin"""
     if ADMIN_CHAT_ID:
@@ -595,6 +677,41 @@ async def notify_admin(text: str):
             await bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=text)
         except Exception as e:
             logger.error(f"Failed to send notification: {e}")
+
+
+async def notify_generation_complete(user_id: int, gen_type: str, generation_id: int, success: bool, error: str = None):
+    """Notify user that generation is complete"""
+    with app.app_context():
+        user = User.query.get(user_id)
+        if not user or not user.telegram_chat_id or not user.notify_on_complete:
+            return
+
+        if success:
+            status_text = f"✅ Генерация #{generation_id} завершена!\n\nТип: {gen_type}"
+        else:
+            error_text = error[:100] if error else "Unknown error"
+            status_text = f"❌ Генерация #{generation_id} не удалась\n\nОшибка: {error_text}"
+
+        try:
+            await bot.send_message(chat_id=int(user.telegram_chat_id), text=status_text)
+        except Exception as e:
+            logger.error(f"Failed to send generation notification: {e}")
+
+
+async def notify_new_generation(user_id: int, gen_type: str, generation_id: int):
+    """Notify admin of new generation"""
+    if not ADMIN_CHAT_ID:
+        return
+
+    with app.app_context():
+        user = User.query.get(user_id)
+        username = user.username if user else "Unknown"
+
+    try:
+        text = f"🆕 Новая генерация #{generation_id}\n\nПользователь: {username}\nТип: {gen_type}"
+        await bot.send_message(chat_id=int(ADMIN_CHAT_ID), text=text)
+    except Exception as e:
+        logger.error(f"Failed to send admin notification: {e}")
 
 
 async def main():

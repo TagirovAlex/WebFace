@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Галерея - Image/Video Generator{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <div class="history-header">
+        <div class="history-title">
+            <h1>🖼️ Публичная галерея</h1>
+            <span class="history-count">
+                {% if total %}
+                    {{ total }} записей
+                {% endif %}
+            </span>
+        </div>
+    </div>
+    
+    {% if generations %}
+        <div class="history-grid">
+            {% for gen in generations %}
+            <div class="history-item" data-id="{{ gen.id }}">
+                <div class="history-item-header">
+                    <span class="history-type">
+                        {% if gen.generation_type == 'text-to-image' %}
+                            <span class="type-icon">📝</span> Изображение
+                        {% elif gen.generation_type == 'text-to-video' %}
+                            <span class="type-icon">🎬</span> Видео
+                        {% else %}
+                            <span class="type-icon">✏️</span> Редактирование
+                        {% endif %}
+                    </span>
+                    <span class="history-author">
+                        <a href="{{ url_for('user_gallery', username=gen.user.username) }}">{{ gen.user.username }}</a>
+                    </span>
+                </div>
+                
+                <div class="history-preview" onclick="window.location.href='{{ url_for('public_generation', generation_id=gen.id) }}'">
+                    {% if gen.output_files %}
+                        {% if gen.generation_type == 'text-to-video' %}
+                            <video 
+                                src="{{ url_for('serve_result_public', filename=gen.output_files[0]) }}" 
+                                preload="metadata"
+                                class="history-media"
+                                muted
+                            ></video>
+                            <div class="play-overlay">▶</div>
+                        {% else %}
+                            <img 
+                                src="/r/{{ gen.output_files[0] }}" 
+                                alt="Result" 
+                                class="history-media"
+                                loading="lazy"
+                            >
+                        {% endif %}
+                        {% if gen.output_files|length > 1 %}
+                            <span class="more-badge">+{{ gen.output_files|length - 1 }}</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                
+                <div class="history-details">
+                    <p class="history-prompt" title="{{ gen.prompt }}">
+                        {{ gen.prompt[:80] }}{% if gen.prompt|length > 80 %}...{% endif %}
+                    </p>
+                    <div class="history-meta">
+                        <span class="meta-item">
+                            <span class="meta-icon">🕐</span>
+                            {{ gen.created_at.strftime('%d.%m.%Y') }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if pages > 1 %}
+        <div class="pagination">
+            {% if has_prev %}
+                <a href="{{ url_for('public_gallery', page=current_page-1) }}" class="pagination-link">
+                    ← Назад
+                </a>
+            {% endif %}
+            
+            <span>Страница {{ current_page }} из {{ pages }}</span>
+            
+            {% if has_next %}
+                <a href="{{ url_for('public_gallery', page=current_page+1) }}" class="pagination-link">
+                    Вперед →
+                </a>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+    {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">🖼️</span>
+            <h3>Галерея пуста</h3>
+            <p>Пока нет публичных генераций</p>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.history-author a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.history-author a:hover {
+    text-decoration: underline;
+}
+
+.play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: rgba(0,0,0,0.7);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+}
+
+.history-preview:hover .play-overlay {
+    opacity: 1;
+}
+</style>
+
+{% endblock %}

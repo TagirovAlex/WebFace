@@ -11,6 +11,7 @@ from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flasgger import Swagger
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from PIL import Image
@@ -34,7 +35,7 @@ except ImportError:
     print("[WARNING] python-magic not installed. Using basic file validation.")
 
 from config import Config
-from models import db, User, Generation, GenerationType, TokenBalance, TokenTransaction, Pricing, TokenRule, UserPriority
+from models import db, User, Generation, GenerationType, TokenBalance, TokenTransaction, Pricing, TokenRule, UserPriority, GenerationPreset
 from modules import ModuleRegistry
 
 # ==================== FLASK APP SETUP ====================
@@ -78,6 +79,58 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://"
 )
+
+swagger = Swagger(app, template={
+    'info': {
+        'title': 'WebFace API',
+        'description': 'API для генерации изображений и видео через ComfyUI',
+        'version': '2.0',
+        'contact': {
+            'name': 'WebFace'
+        }
+    },
+    'securityDefinitions': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT токен авторизации. Формат: "Bearer {token}"'
+        }
+    },
+    'definitions': {
+        'GenerateResponse': {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'generation_id': {'type': 'integer'},
+                'message': {'type': 'string'},
+                'settings': {
+                    'type': 'object',
+                    'properties': {
+                        'width': {'type': 'integer'},
+                        'height': {'type': 'integer'}
+                    }
+                }
+            }
+        },
+        'ErrorResponse': {
+            'type': 'object',
+            'properties': {
+                'error': {'type': 'string'}
+            }
+        },
+        'GenerationStatus': {
+            'type': 'object',
+            'properties': {
+                'id': {'type': 'integer'},
+                'status': {'type': 'string', 'enum': ['pending', 'processing', 'completed', 'failed']},
+                'progress': {'type': 'number'},
+                'output_files': {'type': 'array', 'items': {'type': 'string'}},
+                'error_message': {'type': 'string'}
+            }
+        }
+    }
+})
 
 # Initialize extensions
 db.init_app(app)
@@ -778,6 +831,53 @@ def admin_update_generation_type(type_id):
     return jsonify({'success': True, 'message': 'Сохранено'})
 
 
+@app.route('/api/admin/scan-modules', methods=['POST'])
+@admin_required
+def api_admin_scan_modules():
+    """Сканирование модулей и автоматическое добавление в БД"""
+    from modules import ModuleRegistry
+
+    if not ModuleRegistry._initialized:
+        ModuleRegistry.initialize()
+
+    modules = ModuleRegistry.get_all()
+    modules_found = len(modules)
+    modules_added = 0
+    existing_keys = {gt.type_key for gt in GenerationType.query.all()}
+
+    for mod in modules:
+        if mod.type_key not in existing_keys:
+            gen_type = GenerationType(
+                type_key=mod.type_key,
+                name=mod.name or mod.type_key,
+                description=mod.description or f"Модуль {mod.type_key}",
+                enabled=True
+            )
+            db.session.add(gen_type)
+            modules_added += 1
+            print(f"[MODULE] Auto-added: {mod.type_key}")
+
+    existing_pricing = {p.module_key for p in Pricing.query.all()}
+    for mod in modules:
+        if mod.type_key not in existing_pricing:
+            pricing = Pricing(
+                module_key=mod.type_key,
+                base_cost=getattr(mod, 'base_cost', 10),
+                is_public=True
+            )
+            db.session.add(pricing)
+            print(f"[PRICING] Auto-added: {mod.type_key} (cost: {pricing.base_cost})")
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'modules_found': modules_found,
+        'modules_added': modules_added,
+        'modules': [{'key': m.type_key, 'name': m.name} for m in modules]
+    })
+
+
 @app.route('/api/generation-types')
 @login_required
 def api_generation_types():
@@ -929,7 +1029,58 @@ def admin_cleanup():
 @login_required
 @limiter.limit("10 per minute")
 def api_generate_image():
-    """Генерация изображения"""
+    """Генерация изображения
+    ---
+    tags:
+      - Generation
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - prompt
+          properties:
+            prompt:
+              type: string
+              description: Текстовый промпт для генерации
+            negative_prompt:
+              type: string
+              description: Негативный промпт
+            model:
+              type: string
+              default: wan22
+              description: Модель для генерации
+            seed:
+              type: integer
+              description: Seed для генерации (опционально)
+            width:
+              type: integer
+              default: 1024
+              description: Ширина изображения
+            height:
+              type: integer
+              default: 1024
+              description: Высота изображения
+    responses:
+      200:
+        description: Успешный запуск генерации
+        schema:
+          $ref: '#/definitions/GenerateResponse'
+      400:
+        description: Ошибка валидации
+      402:
+        description: Недостаточно токенов
+      403:
+        description: Тип генерации недоступен
+    """
     data = request.json
     prompt = data.get('prompt', '').strip()
     negative_prompt = data.get('negative_prompt', '').strip()
@@ -1006,7 +1157,45 @@ def api_generate_image():
 @login_required
 @limiter.limit("5 per minute")
 def api_generate_video():
-    """Генерация видео"""
+    """Генерация видео
+    ---
+    tags:
+      - Generation
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - prompt
+          properties:
+            prompt:
+              type: string
+              description: Текстовый промпт для генерации видео
+            negative_prompt:
+              type: string
+              description: Негативный промпт
+            model:
+              type: string
+              default: wan22_video
+              description: Модель для генерации
+            duration:
+              type: integer
+              default: 4
+              description: Длительность видео в секундах
+    responses:
+      200:
+        description: Успешный запуск генерации
+      400:
+        description: Ошибка валидации
+      403:
+        description: Тип генерации недоступен
+    """
     data = request.json
     prompt = data.get('prompt', '').strip()
     negative_prompt = data.get('negative_prompt', '').strip()
@@ -1051,7 +1240,35 @@ def api_generate_video():
 @login_required
 @limiter.limit("10 per minute")
 def api_edit_images():
-    """Редактирование изображений"""
+    """Редактирование изображений
+    ---
+    tags:
+      - Generation
+    consumes:
+      - multipart/form-data
+    produces:
+      - application/json
+    parameters:
+      - in: formData
+        name: images
+        type: file
+        required: true
+        description: Изображения для редактирования (1-4)
+      - in: formData
+        name: prompt
+        type: string
+        required: true
+        description: Текстовый промпт для редактирования
+      - in: formData
+        name: negative_prompt
+        type: string
+        description: Негативный промпт
+    responses:
+      200:
+        description: Успешный запуск генерации
+      400:
+        description: Ошибка валидации
+    """
     files = request.files.getlist('images')
     prompt = request.form.get('prompt', '').strip()
     negative_prompt = request.form.get('negative_prompt', '').strip()
@@ -1158,6 +1375,68 @@ def api_image_presets():
     })
 
 
+@app.route('/api/presets', methods=['GET', 'POST'])
+@login_required
+def api_presets():
+    """Получение/создание пресетов генераций"""
+    if request.method == 'POST':
+        data = request.json or {}
+        name = data.get('name', '').strip()
+        generation_type = data.get('generation_type', 'text-to-image')
+        model_used = data.get('model', '')
+        prompt = data.get('prompt', '')
+        negative_prompt = data.get('negative_prompt', '')
+        settings = data.get('settings', {})
+
+        if not name:
+            return jsonify({'error': 'Название пресета обязательно'}), 400
+
+        preset = GenerationPreset(
+            user_id=current_user.id,
+            name=name,
+            generation_type=generation_type,
+            model_used=model_used,
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            settings=settings,
+            is_public=data.get('is_public', False)
+        )
+
+        db.session.add(preset)
+        db.session.commit()
+
+        return jsonify({'success': True, 'preset': preset.to_dict()})
+
+    # GET - получить пресеты
+    presets = GenerationPreset.query.filter(
+        (GenerationPreset.user_id == current_user.id) |
+        (GenerationPreset.is_public == True)
+    ).order_by(GenerationPreset.created_at.desc()).all()
+
+    return jsonify({
+        'success': True,
+        'presets': [p.to_dict() for p in presets]
+    })
+
+
+@app.route('/api/presets/<int:preset_id>', methods=['DELETE'])
+@login_required
+def api_delete_preset(preset_id):
+    """Удаление пресета"""
+    preset = GenerationPreset.query.filter_by(
+        id=preset_id,
+        user_id=current_user.id
+    ).first()
+
+    if not preset:
+        return jsonify({'error': 'Пресет не найден'}), 404
+
+    db.session.delete(preset)
+    db.session.commit()
+
+    return jsonify({'success': True})
+
+
 @app.route('/api/theme', methods=['GET', 'POST'])
 @login_required
 def api_theme():
@@ -1179,7 +1458,26 @@ def api_theme():
 @app.route('/api/generation/<int:generation_id>/status')
 @login_required
 def api_generation_status(generation_id):
-    """Получение статуса генерации"""
+    """Получение статуса генерации
+    ---
+    tags:
+      - Generation
+    produces:
+      - application/json
+    parameters:
+      - in: path
+        name: generation_id
+        type: integer
+        required: true
+        description: ID генерации
+    responses:
+      200:
+        description: Статус генерации
+        schema:
+          $ref: '#/definitions/GenerationStatus'
+      404:
+        description: Генерация не найдена
+    """
     # Проверяем права: владелец или админ
     if current_user.is_admin:
         generation = Generation.query.get(generation_id)
@@ -1242,7 +1540,31 @@ def api_delete_generation(generation_id):
 @app.route('/api/history')
 @login_required
 def api_history():
-    """Получение истории генераций"""
+    """Получение истории генераций
+    ---
+    tags:
+      - History
+    produces:
+      - application/json
+    parameters:
+      - in: query
+        name: page
+        type: integer
+        default: 1
+        description: Номер страницы
+      - in: query
+        name: per_page
+        type: integer
+        default: 20
+        description: Количество на странице (макс 100)
+      - in: query
+        name: type
+        type: string
+        description: Фильтр по типу генерации (text-to-image, text-to-video, image-to-image)
+    responses:
+      200:
+        description: История генераций
+    """
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)  # Ограничение
     filter_type = request.args.get('type', None)
@@ -1330,6 +1652,90 @@ def download_file(filename):
     if filepath and os.path.exists(filepath):
         return send_from_directory(folder, secure_filename(filename), as_attachment=True)
     return jsonify({'error': 'Файл не найден'}), 404
+
+
+@app.route('/gallery')
+def public_gallery():
+    """Публичная галерея"""
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 20, type=int), 100)
+
+    generations = Generation.query.filter_by(
+        is_public=True,
+        hidden_from_user=False
+    ).order_by(Generation.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    return render_template('gallery.html',
+        generations=generations.items,
+        total=generations.total,
+        pages=generations.pages,
+        current_page=page,
+        has_next=generations.has_next,
+        has_prev=generations.has_prev
+    )
+
+
+@app.route('/gallery/<int:generation_id>')
+def public_generation(generation_id):
+    """Публичная генерация по ID"""
+    generation = Generation.query.filter_by(
+        id=generation_id,
+        is_public=True,
+        hidden_from_user=False
+    ).first_or_404(description='Генерация не найдена')
+
+    return render_template('generation_public.html', generation=generation)
+
+
+@app.route('/user/<username>/gallery')
+def user_gallery(username):
+    """Галерея пользователя"""
+    user = User.query.filter_by(username=username).first_or_404(description='Пользователь не найден')
+
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 20, type=int), 100)
+
+    generations = Generation.query.filter_by(
+        user_id=user.id,
+        is_public=True,
+        hidden_from_user=False
+    ).order_by(Generation.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    return render_template('user_gallery.html',
+        user=user,
+        generations=generations.items,
+        total=generations.total,
+        pages=generations.pages,
+        current_page=page,
+        has_next=generations.has_next,
+        has_prev=generations.has_prev
+    )
+
+
+@app.route('/api/generation/<int:generation_id>/toggle-public', methods=['POST'])
+@login_required
+def api_toggle_public(generation_id):
+    """Сделать генерацию публичной/приватной"""
+    generation = Generation.query.filter_by(
+        id=generation_id,
+        user_id=current_user.id
+    ).first()
+
+    if not generation:
+        return jsonify({'error': 'Генерация не найдена'}), 404
+
+    generation.is_public = not generation.is_public
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'is_public': generation.is_public,
+        'message': 'Публичная' if generation.is_public else 'Приватная'
+    })
 
 
 # ==================== TOKEN FUNCTIONS ====================
@@ -1792,6 +2198,49 @@ def update_multiple_input_images(workflow, image_names):
     return workflow
 
 
+def update_qwen_reference_images(workflow, image_names):
+    """
+    Обновление reference изображений для Qwen Image Edit Plus.
+    Использует поля image1, image2, image3 в нодах TextEncodeQwenImageEditPlus.
+    Неиспользуемые картинки устанавливаются в False для отключения ноды.
+    """
+    print(f"\n[QwenRef] === Setting {len(image_names)} reference images ===")
+
+    # Доступные поля для изображений
+    image_fields = ['image1', 'image2', 'image3']
+
+    found_count = 0
+
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            continue
+
+        class_type = node.get('class_type', '')
+
+        # Обрабатываем только TextEncodeQwenImageEditPlus ноды
+        if class_type == 'TextEncodeQwenImageEditPlus':
+            inputs = node.get('inputs', {})
+
+            for idx, field in enumerate(image_fields):
+                if idx < len(image_names):
+                    # Картинка выбрана - устанавливаем имя файла
+                    inputs[field] = image_names[idx]
+                    print(f"[QwenRef] ✓ {node_id}.{field} = {image_names[idx]}")
+                else:
+                    # Картинка не выбрана - отключаем ноду
+                    inputs[field] = False
+                    print(f"[QwenRef] ✓ {node_id}.{field} = False (disabled)")
+
+            found_count += 1
+
+    if found_count == 0:
+        print("[QwenRef] ⚠ No TextEncodeQwenImageEditPlus nodes found!")
+
+    print(f"[QwenRef] Updated {found_count} nodes")
+
+    return workflow
+
+
 def update_video_settings(workflow, duration):
     """
     Обновление настроек видео для workflow
@@ -2244,8 +2693,16 @@ def process_image_generation(generation_id, prompt, negative_prompt, model, seed
             client_id = f"user_{generation.user_id}_{generation_id}"
             prompt_id = send_workflow_to_comfy(workflow, client_id, force_seed=seed)
 
+            generation.status = 'processing'
+            generation.progress = 5.0
+            db.session.commit()
+
             timeout = app.config.get('COMFY_TIMEOUT_IMAGE', 300)
             output_files = wait_for_comfy_result(prompt_id, is_video=False)
+
+            generation.progress = 90.0
+            db.session.commit()
+
             saved_results = save_results_from_comfy(output_files, is_video=False)
 
             generation.output_files = saved_results
@@ -2286,8 +2743,16 @@ def process_video_generation(generation_id, prompt, negative_prompt, model, dura
             client_id = f"user_{generation.user_id}_{generation_id}"
             prompt_id = send_workflow_to_comfy(workflow, client_id)
 
+            generation.status = 'processing'
+            generation.progress = 5.0
+            db.session.commit()
+
             timeout = min(120 + (duration * 60), app.config.get('COMFY_TIMEOUT_MAX', 1800))
             output_files = wait_for_comfy_result(prompt_id, is_video=True)
+
+            generation.progress = 90.0
+            db.session.commit()
+
             saved_results = save_results_from_comfy(output_files, is_video=True)
 
             generation.output_files = saved_results
@@ -2339,6 +2804,9 @@ def process_image_edit(generation_id, input_files, edit_type, prompt, negative_p
             if file_count == 1:
                 workflow = update_single_input_image(workflow, uploaded_names[0])
             else:
+                # Qwen Image Edit Plus - используем новую функцию для reference картинок
+                workflow = update_qwen_reference_images(workflow, uploaded_names)
+                # Также обновляем LoadImage ноды для совместимости
                 workflow = update_multiple_input_images(workflow, uploaded_names)
 
             # Обновляем промпты
@@ -2348,9 +2816,17 @@ def process_image_edit(generation_id, input_files, edit_type, prompt, negative_p
             client_id = f"user_{generation.user_id}_{generation_id}"
             prompt_id = send_workflow_to_comfy(workflow, client_id)
 
+            generation.status = 'processing'
+            generation.progress = 5.0
+            db.session.commit()
+
             # Ждём результат
             timeout = app.config.get('COMFY_TIMEOUT_EDIT', 600)
             output_files = wait_for_comfy_result(prompt_id, is_video=False)
+
+            generation.progress = 90.0
+            db.session.commit()
+
             saved_results = save_results_from_comfy(output_files, is_video=False)
 
             generation.output_files = saved_results

@@ -140,6 +140,11 @@ class Config:
             'name': 'Qwen Multi Image',
             'description': 'Редактирование нескольких изображений',
             'type': 'edit'
+        },
+        'z_image_turbo': {
+            'name': 'Z-Image Turbo',
+            'description': 'Быстрая генерация изображений Z-Image-Turbo',
+            'type': 'image'
         }
     }
 

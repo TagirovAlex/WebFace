@@ -29,6 +29,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     theme = db.Column(db.String(20), default='light')  # 'light' or 'dark'
+    telegram_chat_id = db.Column(db.String(20))  # Для пуш-уведомлений
+    notify_on_complete = db.Column(db.Boolean, default=True)  # Уведомлять о завершении
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     generations = db.relationship('Generation', backref='user', lazy='dynamic')
@@ -51,12 +53,14 @@ class Generation(db.Model):
     output_files = db.Column(db.JSON)  # Список выходных файлов
     settings = db.Column(db.JSON)  # Дополнительные настройки
     status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
+    progress = db.Column(db.Float, default=0.0)  # 0.0 - 100.0
     error_message = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
     
     # Флаг: скрыто ли от пользователя (при "очистке" истории)
     hidden_from_user = db.Column(db.Boolean, default=False, nullable=False)
+    is_public = db.Column(db.Boolean, default=False, nullable=False)  # Публичная галерея
     
     def __repr__(self):
         return f'<Generation {self.id} by User {self.user_id}>'
@@ -74,10 +78,12 @@ class Generation(db.Model):
             'output_files': self.output_files or [],
             'settings': self.settings or {},
             'status': self.status,
+            'progress': self.progress,
             'error_message': self.error_message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'hidden_from_user': self.hidden_from_user
+            'hidden_from_user': self.hidden_from_user,
+            'is_public': self.is_public
         }
 
 
@@ -125,6 +131,7 @@ class Pricing(db.Model):
     cost_per_width = db.Column(db.Integer, default=0)  # За каждые 256 пикселей ширины
     cost_per_height = db.Column(db.Integer, default=0)  # За каждые 256 пикселей высоты
     cost_per_second = db.Column(db.Integer, default=0)  # За секунду видео
+    is_public = db.Column(db.Boolean, default=False)  # Публичный пресет (для всех)
 
     def calculate_cost(self, width=0, height=0, duration=0):
         """Рассчитать стоимость генерации"""
@@ -139,6 +146,36 @@ class Pricing(db.Model):
 
     def __repr__(self):
         return f'<Pricing {self.module_key} cost:{self.base_cost}>'
+
+
+class GenerationPreset(db.Model):
+    """Пресеты генераций пользователя"""
+    __tablename__ = 'generation_presets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    generation_type = db.Column(db.String(50), nullable=False)  # text-to-image, text-to-video, image-edit
+    model_used = db.Column(db.String(100))
+    prompt = db.Column(db.Text)
+    negative_prompt = db.Column(db.Text)
+    settings = db.Column(db.JSON)  # width, height, seed, duration, etc.
+    is_public = db.Column(db.Boolean, default=False)  # Публичный пресет
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'generation_type': self.generation_type,
+            'model_used': self.model_used,
+            'prompt': self.prompt,
+            'negative_prompt': self.negative_prompt,
+            'settings': self.settings or {}
+        }
+
+    def __repr__(self):
+        return f'<Preset {self.name} for User {self.user_id}>'
 
 
 class TokenRule(db.Model):

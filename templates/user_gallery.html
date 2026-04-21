@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.username }} - Галерея{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <div class="history-header">
+        <div class="history-title">
+            <h1>🖼️ Галерея {{ user.username }}</h1>
+            <span class="history-count">
+                {% if total %}
+                    {{ total }} записей
+                {% endif %}
+            </span>
+        </div>
+    </div>
+    
+    {% if generations %}
+        <div class="history-grid">
+            {% for gen in generations %}
+            <div class="history-item" onclick="window.location.href='{{ url_for('public_generation', generation_id=gen.id) }}'">
+                <div class="history-item-header">
+                    <span class="history-type">
+                        {% if gen.generation_type == 'text-to-image' %}📝 Изображение
+                        {% elif gen.generation_type == 'text-to-video' %}🎬 Видео
+                        {% else %}✏️ Редактирование{% endif %}
+                    </span>
+                </div>
+                
+                <div class="history-preview">
+                    {% if gen.output_files %}
+                        {% if gen.generation_type == 'text-to-video' %}
+                            <video src="/results/{{ gen.output_files[0] }}" class="history-media" muted></video>
+                        {% else %}
+                            <img src="/results/{{ gen.output_files[0] }}" alt="Result" class="history-media" loading="lazy">
+                        {% endif %}
+                    {% endif %}
+                </div>
+                
+                <div class="history-details">
+                    <p>{{ gen.prompt[:60] }}{% if gen.prompt|length > 60 %}...{% endif %}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+    {% else %}
+        <div class="empty-state">
+            <span class="empty-icon">🖼️</span>
+            <h3>Галерея пуста</h3>
+            <p>Пользователь не имеет публичных генераций</p>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}

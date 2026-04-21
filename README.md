@@ -1,114 +1,26 @@
-# WebFace - Веб-интерфейс для ComfyUI
+# WebFace - ComfyUI Web Interface
 
-Простой и удобный веб-интерфейс для работы с ComfyUI по сети.
+Веб-интерфейс для генерации изображений и видео через ComfyUI.
 
-## 📋 Описание
+## Описание
 
-WebFace — это веб-приложение на Flask, предоставляющее удобный интерфейс для генерации изображений и видео с использованием ComfyUI. Приложение поддерживает:
+WebFace — это Flask-приложение для работы с ComfyUI, предоставляющее:
 
-- 🎨 Генерацию изображений из текста (Text-to-Image)
-- 🎬 Генерацию видео из текста (Text-to-Video)  
-- ✏️ Редактирование изображений с помощью AI
-- 👥 Систему пользователей с ролями
-- 📊 Историю генераций
+- Генерацию изображений из текста (Text-to-Image)
+- Генерацию видео из текста (Text-to-Video)
+- Редактирование изображений AI
+- Систему токенов и балансов пользователей
+- Публичные и пользовательские галереи
+- Пресеты генераций
+- Telegram бота для администрирования
+- API документацию (Swagger)
 
-## 🛠️ Технологический стек
+## Требования
 
-### Backend
-| Библиотека | Версия | Назначение |
-|------------|--------|------------|
-| Flask | 3.0.0 | Основной веб-фреймворк |
-| Flask-SQLAlchemy | 3.1.1 | ORM для работы с базой данных |
-| Flask-Login | 0.6.3 | Управление сессиями пользователей |
-| Flask-Bcrypt | 1.0.1 | Хэширование паролей |
-| Pillow | 10.2.0 | Обработка изображений |
-| Requests | 2.31.0 | HTTP клиент для ComfyUI API |
-| python-dotenv | 1.0.0 | Загрузка переменных окружения |
-| Werkzeug | 3.0.1 | WSGI утилиты |
-
-### Frontend
-- HTML5 / CSS3
-- Vanilla JavaScript
-- Jinja2 Templates
-
-### База данных
-- SQLite (по умолчанию)
-- Поддержка PostgreSQL/MySQL через переменные окружения
-
-## 📁 Структура проекта
-
-```
-WebFace/
-├── app.py              # Основное Flask приложение
-├── config.py           # Конфигурация приложения
-├── models.py           # SQLAlchemy модели
-├── create_admin.py     # Утилита для управления пользователями
-├── migrate_db.py        # Миграция базы данных v1->v2
-├── requirements.txt    # Python зависимости
-├── setup.bat           # Скрипт установки для Windows
-├── .env.example        # Пример файла окружения
-├── modules/            # Модульная система
-│   ├── __init__.py
-│   ├── text_to_image/
-│   ├── text_to_video/
-│   ├── image_edit/
-│   └── image_edit_multi/
-├── static/
-│   ├── css/            # Стили
-│   └── js/             # Клиентский JavaScript
-├── templates\
-│   ├── admin\
-│   │   ├── dashboard.html      # Дашборд генераций
-│   │   ├── generation_detail.html
-│   │   ├── generations.html
-│   │   ├── users.html
-│   │   ├── user_detail.html
-│   │   ├── generation_types.html
-│   │   └── tokens.html
-│   ├── base.html       # Базовый шаблон
-│   ├── history.html    # История генераций
-│   ├── index.html     # Главная страница
-│   ├── profile.html   # Настройки пользователя
-│   ├── login.html     # Страница входа
-│   └── register.html # Страница регистрации
-├── uploads/           # Загруженные изображения
-└── results/         # Результаты генерации
-```
-WebFace/
-├── app.py              # Основное Flask приложение
-├── config.py           # Конфигурация приложения
-├── models.py           # SQLAlchemy модели (User, Generation)
-├── create_admin.py     # Утилита для управления пользователями
-├── fix_admin.py        # Утилита для исправления админа
-├── requirements.txt    # Python зависимости
-├── setup.bat           # Скрипт установки для Windows
-├── .env.example        # Пример файла окружения
-├── static/
-│   ├── css/           		# Стили
-│   └── js/
-│       └── main.js    		# Клиентский JavaScript
-├── templates\
-│   ├── admin\
-│   │   ├── dashboard.html				#Дашбоард генераций
-│   │   ├── generation_detail.html		#Детали генерации
-│   │   ├── generations.html			#список генераций
-│   │   └── users.html					#управление пользователем
-│   ├── base.html			# Базовый шаблон
-│   ├── history.html		# История генераций
-│   ├── index.html			# Главная страница
-│   ├── login.html			# Страница входа
-│   └── register.html		# Страница регистрации
-├── uploads/           		# Загруженные изображения
-└── results/           		# Результаты генерации
-```
-
-## 🚀 Установка
-
-### Требования
 - Python 3.10+
-- ComfyUI (запущенный на указанном в настройках адресе)
+- ComfyUI (запущенный локально или удалённо)
 
-### Шаги установки
+## Установка
 
 1. Клонируйте репозиторий:
 ```bash
@@ -119,8 +31,8 @@ cd WebFace
 2. Создайте виртуальное окружение:
 ```bash
 python -m venv venv
+venv\Scripts\activate  # Windows
 source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
 ```
 
 3. Установите зависимости:
@@ -128,72 +40,98 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-4. Настройте переменные окружения:
+4. Скопируйте и настройте .env:
 ```bash
-cp .env.example .env
-# Отредактируйте .env файл
+copy .env.example .env
+# Отредактируйте .env
 ```
 
-5. Создайте администратора:
+5. Создайте базу данных и админа:
 ```bash
-python create_admin.py
+python app.py
+# При первом запуске создастся база данных
+python create_admin.py  # Создать админа
 ```
 
-6. Запустите приложение:
+6. Запустите:
 ```bash
 python app.py
 ```
 
-## ⚙️ Конфигурация
+## Конфигурация
 
-### Переменные окружения (.env)
+### Переменные окружения
 
 | Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| SECRET_KEY | Секретный ключ Flask | ⚠️ Обязательно изменить! |
-| COMFY_URL | URL ComfyUI сервера | http://127.0.0.1:8188 |
-| DATABASE_URL | URL базы данных | sqlite:///comfyui.db |
-| MAX_IMAGES_PER_GENERATION | Макс. изображений за раз | 3 |
-| MAX_IMAGE_SIZE_MB | Макс. размер файла (МБ) | 10 |
-| MAX_VIDEO_DURATION | Макс. длительность видео (сек) | 15 |
-| MAX_IMAGE_DIMENSION | Макс. размер стороны (px) | 1280 |
-| FLASK_DEBUG | Режим отладки | False |
+|-----------|----------|-------------|
+| SECRET_KEY | Секретный ключ | auto-generated |
+| COMFY_URL | URL ComfyUI | http://127.0.0.1:8188 |
+| DATABASE_URL | База данных | sqlite:///webface.db |
+| FLASK_ENV | Режим | development |
+| TELEGRAM_BOT_TOKEN | Токен бота | - |
+| TELEGRAM_ADMIN_CHAT_ID | Chat ID админа | - |
 
+### Запуск ComfyUI
 
+Убедитесь что ComfyUI запущен и доступен по COMFY_URL.
 
-## 📝 Лицензия
+## Особенности
+
+### Создание генераций
+- Text-to-Image: `/` — главная страница
+- Text-to-Video: `/` — выберите тип "Видео"
+- Image-to-Image: `/` — загрузите изображения
+
+### API
+- `/apidocs` — Swagger документация
+- `/api/generate-image` — POST генерация изображений
+- `/api/generate-video` — POST генерация видео
+- `/api/edit-images` — POST редактирование
+- `/api/history` — история пользователя
+- `/api/presets` — управление пресетами
+
+### Галереи
+- `/gallery` — публичная галерея
+- `/user/<username>/gallery` — галерея пользователя
+- `/gallery/<id>` — конкретная генерация
+
+### Telegram бот
+```bash
+python telegram_bot.py
+```
+
+Команды: /stats, /users, /last, /user <id>, /add_tokens, /gens, /toggle_admin
+
+## Структура проекта
+
+```
+WebFace/
+├── app.py              # Основное приложение
+├── config.py          # Конфигурация
+├── models.py          # Модели БД
+├── telegram_bot.py    # Telegram бот
+├── create_admin.py   # Создание админа
+���── migrate_db.py    # Миграция БД
+├── requirements.txt  # Зависимости
+├── modules/         # Генерационные модули
+├── templates/      # HTML шаблоны
+├── static/         # CSS/JS
+├── uploads/        # Загруженные файлы
+└── results/       # Результаты
+```
+
+## Безопасность
+
+- CSRF защита
+- Rate limiting
+- Валидация файлов
+- Хэширование паролей
+- Защита от path traversal
+
+## Лицензия
 
 MIT License
 
-## 👤 Автор
+## Автор
 
 [TagirovAlex](https://github.com/TagirovAlex)
-
----
-
----
-
-## 🆕 v2.0 Release
-
-### Новые возможности
-- **Система токенов** - баланс пользователей, транзакции, ценообразование
-- **Модульная система** - подключаемые генерационные модули
-- **Приоритеты пользователей** - Admin/High/Normal/Low
-- **Скрытые генерации** - возможность скрыть генерации от пользователя
-
-### Миграция базы данных
-```bash
-python migrate_db.py --backup
-```
-
-### Структура модулей
-```
-modules/
-├── __init__.py           # BaseModule, ModuleRegistry
-├── text_to_image/       # WAN 2.2 генерация изображений
-├── text_to_video/       # WAN 2.2 генерация видео
-├── image_edit/          # Редактирование одного изображения
-└── image_edit_multi/   # Редактирование нескольких изображений
-```
-
-*Отчёт о безопасности сгенерирован автоматически*
