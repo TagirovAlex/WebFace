@@ -128,10 +128,49 @@ WebFace/
 - Хэширование паролей
 - Защита от path traversal
 
+## Технологии
+
+| Технология | Версия | Назначение |
+|-----------|-------|----------|
+| Flask | 3.0.0 | Веб-фреймворк |
+| Flask-SQLAlchemy | 3.1.1 | ORM |
+| Flask-Login | 0.6.3 | Аутентификация |
+| Flask-Bcrypt | 1.0.1 | Хэширование паролей |
+| Flask-WTF | 1.2.1 | CSRF защита |
+| Flask-Limiter | 3.5.0 | Rate limiting |
+| Pillow | 10.2.0 | Обработка изображений |
+| aiogram | 3.4.1 | Telegram бот |
+| flasgger | 0.9.7 | Swagger documentation |
+
+## Используемые библиотеки
+
+### Основные
+- [Flask](https://flask.palletsprojects.com/) - MIT License
+- [SQLAlchemy](https://www.sqlalchemy.org/) - MIT License
+- [Werkzeug](https://werkzeug.palletsprojects.com/) - MIT License
+
+### Безопасность
+- [Flask-Login](https://flask-login.readthedocs.io/) - MIT License
+- [Flask-Bcrypt](https://flask-bcrypt.readthedocs.io/) - MIT License
+- [Flask-WTF](https://flask-wtf.readthedocs.io/) - MIT License
+
+### Интеграции
+- [aiogram](https://aiogram.dev/) - MIT License
+- [Flasgger](https://flasgger.readthedocs.io/) - MIT License
+
+### ComfyUI
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - AGPL-3.0 License
+
 ## Лицензия
 
-MIT License
+MIT License - см. [LICENSE](LICENSE)
 
 ## Автор
 
 [TagirovAlex](https://github.com/TagirovAlex)
+
+## Ссылки
+
+- [Репозиторий](https://github.com/TagirovAlex/WebFace)
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+- [Документация ComfyUI API](https://docs.comfy.org/)
