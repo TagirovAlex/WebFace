@@ -128,38 +128,37 @@ WebFace/
 - Хэширование паролей
 - Защита от path traversal
 
-## Технологии
+## Используемые библиотеки, ПО и ссылки
 
-| Технология | Версия | Назначение |
-|-----------|-------|----------|
-| Flask | 3.0.0 | Веб-фреймворк |
-| Flask-SQLAlchemy | 3.1.1 | ORM |
-| Flask-Login | 0.6.3 | Аутентификация |
-| Flask-Bcrypt | 1.0.1 | Хэширование паролей |
-| Flask-WTF | 1.2.1 | CSRF защита |
-| Flask-Limiter | 3.5.0 | Rate limiting |
-| Pillow | 10.2.0 | Обработка изображений |
-| aiogram | 3.4.1 | Telegram бот |
-| flasgger | 0.9.7 | Swagger documentation |
+### Ядро приложения
 
-## Используемые библиотеки
-
-### Основные
-- [Flask](https://flask.palletsprojects.com/) - MIT License
-- [SQLAlchemy](https://www.sqlalchemy.org/) - MIT License
-- [Werkzeug](https://werkzeug.palletsprojects.com/) - MIT License
-
-### Безопасность
-- [Flask-Login](https://flask-login.readthedocs.io/) - MIT License
-- [Flask-Bcrypt](https://flask-bcrypt.readthedocs.io/) - MIT License
-- [Flask-WTF](https://flask-wtf.readthedocs.io/) - MIT License
+- [Flask](https://flask.palletsprojects.com/) — BSD-3-Clause
+- [Flask-SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com/) — BSD-3-Clause
+- [SQLAlchemy](https://www.sqlalchemy.org/) — MIT
+- [Flask-Login](https://flask-login.readthedocs.io/) — MIT
+- [Flask-Bcrypt](https://flask-bcrypt.readthedocs.io/) — MIT
+- [Flask-WTF](https://flask-wtf.readthedocs.io/) — BSD
+- [WTForms](https://wtforms.readthedocs.io/) — BSD
+- [Flask-Limiter](https://flask-limiter.readthedocs.io/) — MIT
+- [Werkzeug](https://werkzeug.palletsprojects.com/) — MIT
+- [Pillow](https://pillow.readthedocs.io/) — MIT
+- [python-dotenv](https://github.com/theskumar/python-dotenv) — BSD-3-Clause
+- [requests](https://requests.readthedocs.io/) — Apache-2.0
 
 ### Интеграции
-- [aiogram](https://aiogram.dev/) - MIT License
-- [Flasgger](https://flasgger.readthedocs.io/) - MIT License
 
-### ComfyUI
-- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - AGPL-3.0 License
+- [aiogram](https://aiogram.dev/) — MIT
+- [Flasgger](https://flaskgger.readthedocs.io/) — MIT
+
+### Runtime / Инфраструктура
+
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — AGPL-3.0
+- [SQLite](https://sqlite.org/) — Public Domain
+
+### Инструменты безопасности (рекомендуемые)
+
+- [pip-audit](https://github.com/pypa/pip-audit) — Apache-2.0
+- [Bandit](https://bandit.readthedocs.io/) — Apache-2.0
 
 ## Лицензия
 
