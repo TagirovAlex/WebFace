@@ -40,3 +40,9 @@ aiogram==3.4.1
 
 # API Documentation
 flasgger==0.9.7
+
+# Testing
+pytest==8.0.0
+
+# Optional: Redis for caching
+# redis==5.0.1
