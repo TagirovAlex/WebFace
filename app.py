@@ -35,7 +35,7 @@ except ImportError:
     print("[WARNING] python-magic not installed. Using basic file validation.")
 
 from config import Config
-from models import db, User, Generation, GenerationType, TokenBalance, TokenTransaction, Pricing, TokenRule, UserPriority, GenerationPreset
+from models import db, User, Generation, GenerationType, TokenBalance, TokenTransaction, Pricing, TokenRule, UserPriority, GenerationPreset, Favorite
 from modules import ModuleRegistry
 
 # ==================== FLASK APP SETUP ====================
@@ -1373,6 +1373,62 @@ def api_image_presets():
         'max_size': IMAGE_MAX_SIZE,
         'step': IMAGE_SIZE_STEP
     })
+
+
+@app.route('/api/favorites', methods=['GET'])
+@login_required
+def api_favorites():
+    """Получение избранного"""
+    favorites = Favorite.query.filter_by(user_id=current_user.id).order_by(
+        Favorite.created_at.desc()
+    ).all()
+
+    return jsonify({
+        'success': True,
+        'favorites': [{
+            'generation_id': f.generation_id,
+            'created_at': f.created_at.isoformat()
+        } for f in favorites]
+    })
+
+
+@app.route('/api/generation/<int:generation_id>/favorite', methods=['POST', 'DELETE'])
+@login_required
+def api_favorite_toggle(generation_id):
+    """Добавить/удалить из избранного"""
+    generation = Generation.query.filter_by(
+        id=generation_id,
+        user_id=current_user.id
+    ).first()
+
+    if not generation:
+        return jsonify({'error': 'Генерация не найдена'}), 404
+
+    if request.method == 'POST':
+        existing = Favorite.query.filter_by(
+            user_id=current_user.id,
+            generation_id=generation_id
+        ).first()
+
+        if not existing:
+            fav = Favorite(user_id=current_user.id, generation_id=generation_id)
+            db.session.add(fav)
+            db.session.commit()
+            return jsonify({'success': True, 'favorited': True})
+
+        return jsonify({'success': True, 'favorited': True})
+
+    else:
+        fav = Favorite.query.filter_by(
+            user_id=current_user.id,
+            generation_id=generation_id
+        ).first()
+
+        if fav:
+            db.session.delete(fav)
+            db.session.commit()
+
+        return jsonify({'success': True, 'favorited': False})
 
 
 @app.route('/api/presets', methods=['GET', 'POST'])

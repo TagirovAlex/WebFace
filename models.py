@@ -61,6 +61,26 @@ class Generation(db.Model):
     # Флаг: скрыто ли от пользователя (при "очистке" истории)
     hidden_from_user = db.Column(db.Boolean, default=False, nullable=False)
     is_public = db.Column(db.Boolean, default=False, nullable=False)  # Публичная галерея
+
+    favorited_by = db.relationship('Favorite', backref='generation', lazy='dynamic')
+    tags = db.Column(db.String(500))  # Теги через запятую
+
+
+class Favorite(db.Model):
+    """Избранное пользователя"""
+    __tablename__ = 'favorites'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    generation_id = db.Column(db.Integer, db.ForeignKey('generations.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'generation_id', name='uq_user_generation'),
+    )
+
+    def __repr__(self):
+        return f'<Favorite User {self.user_id} -> Gen {self.generation_id}>'
     
     def __repr__(self):
         return f'<Generation {self.id} by User {self.user_id}>'
@@ -83,7 +103,9 @@ class Generation(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'hidden_from_user': self.hidden_from_user,
-            'is_public': self.is_public
+            'is_public': self.is_public,
+            'favorite_count': self.favorited_by.count(),
+            'tags': self.tags or ''
         }
 
 
