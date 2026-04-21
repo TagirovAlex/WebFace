@@ -1493,22 +1493,35 @@ def api_delete_preset(preset_id):
     return jsonify({'success': True})
 
 
+ALLOWED_THEMES = ['light', 'dark', 'blue', 'green', 'purple']
+ALLOWED_COLOR_SCHEMES = ['default', 'ocean', 'forest', 'sunset']
+
+
 @app.route('/api/theme', methods=['GET', 'POST'])
 @login_required
 def api_theme():
-    """Получение/изменение темы пользователя"""
+    """Получение/изменение темы и цветовой схемы"""
     if request.method == 'POST':
         data = request.json or {}
         theme = data.get('theme', 'light')
-        if theme not in ('light', 'dark'):
-            return jsonify({'error': 'Неверная тема'}), 400
+        color_scheme = data.get('color_scheme', 'default')
+
+        if theme not in ALLOWED_THEMES:
+            return jsonify({'error': 'Неверная тема', 'allowed': ALLOWED_THEMES}), 400
+        if color_scheme not in ALLOWED_COLOR_SCHEMES:
+            return jsonify({'error': 'Неверная схема', 'allowed': ALLOWED_COLOR_SCHEMES}), 400
 
         current_user.theme = theme
+        current_user.color_scheme = color_scheme
         db.session.commit()
 
-        return jsonify({'success': True, 'theme': theme})
+        return jsonify({'success': True, 'theme': theme, 'color_scheme': color_scheme})
 
-    return jsonify({'success': True, 'theme': current_user.theme or 'light'})
+    return jsonify({
+        'success': True,
+        'theme': current_user.theme or 'light',
+        'color_scheme': current_user.color_scheme or 'default'
+    })
 
 
 @app.route('/api/generation/<int:generation_id>/status')

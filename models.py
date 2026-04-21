@@ -28,7 +28,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    theme = db.Column(db.String(20), default='light')  # 'light' or 'dark'
+    theme = db.Column(db.String(20), default='light')  # 'light', 'dark', 'blue', 'green', 'purple'
+    color_scheme = db.Column(db.String(20), default='default')  # default, ocean, forest, sunset
     telegram_chat_id = db.Column(db.String(20))  # Для пуш-уведомлений
     notify_on_complete = db.Column(db.Boolean, default=True)  # Уведомлять о завершении
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
