@@ -1672,6 +1672,62 @@ def api_clear_history():
     })
 
 
+@app.route('/api/history/bulk-delete', methods=['POST'])
+@login_required
+def api_bulk_delete():
+    """Массовое удаление генераций"""
+    data = request.json or {}
+    generation_ids = data.get('ids', [])
+
+    if not generation_ids or not isinstance(generation_ids, list):
+        return jsonify({'error': 'Требуется массив ids'}), 400
+
+    deleted_count = 0
+    for gen_id in generation_ids:
+        gen = Generation.query.filter_by(
+            id=gen_id,
+            user_id=current_user.id
+        ).first()
+        if gen:
+            gen.hidden_from_user = True
+            deleted_count += 1
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'deleted': deleted_count,
+        'message': f'Удалено {deleted_count} генераций'
+    })
+
+
+@app.route('/api/history/bulk-export', methods=['POST'])
+@login_required
+def api_bulk_export():
+    """Массовый экспорт генераций (ZIP)"""
+    data = request.json or {}
+    generation_ids = data.get('ids', [])
+
+    if not generation_ids or not isinstance(generation_ids, list):
+        return jsonify({'error': 'Требуется массив ids'}), 400
+
+    files_to_export = []
+    for gen_id in generation_ids:
+        gen = Generation.query.filter_by(
+            id=gen_id,
+            user_id=current_user.id,
+            status='completed'
+        ).first()
+        if gen and gen.output_files:
+            files_to_export.extend(gen.output_files)
+
+    return jsonify({
+        'success': True,
+        'files': files_to_export,
+        'count': len(files_to_export)
+    })
+
+
 # ==================== FILE SERVING ====================
 
 @app.route('/results/<filename>')
