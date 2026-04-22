@@ -1628,3 +1628,124 @@ input:checked + .toggle-slider::before {
         flex-direction: column;
     }
 }
+
+/* ==================== PROFILE STYLES ==================== */
+.profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.profile-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+}
+
+.profile-card-full {
+    grid-column: 1 / -1;
+}
+
+.profile-info {
+    margin-top: 16px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.info-label {
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.info-value {
+    color: var(--text);
+}
+
+.stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius-small);
+}
+
+.stat-item.stat-success {
+    border-left: 4px solid var(--success);
+}
+
+.stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* Success rate in profile - fix overflow */
+.success-rate {
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius-small);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.success-rate span {
+    color: var(--text-muted);
+}
+
+.success-rate strong {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+/* Coming soon */
+.coming-soon-section {
+    margin-top: 24px;
+}
+
+.coming-soon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.coming-soon-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: var(--radius-small);
+}
+
+.coming-soon-icon {
+    font-size: 24px;
+}
+
+.coming-soon-text {
+    color: var(--text-muted);
+}
