@@ -25,11 +25,9 @@ fi
 # Get project path
 PROJECT_PATH="${1:-/var/www/webface}"
 DOMAIN="${2:-localhost}"
-APP_USER="${3:-root}"
 
 echo -e "${GREEN}Project path: $PROJECT_PATH${NC}"
 echo -e "${GREEN}Domain: $DOMAIN${NC}"
-echo -e "${GREEN}App user: $APP_USER${NC}"
 echo ""
 
 # Check if application exists
@@ -38,23 +36,36 @@ if [ ! -f "$PROJECT_PATH/.env" ] || [ ! -d "$PROJECT_PATH/venv" ]; then
     exit 1
 fi
 
-# Set ownership
-echo -e "${GREEN}Setting file ownership to $APP_USER...${NC}"
-chown -R $APP_USER:$APP_USER $PROJECT_PATH
-chmod -R 755 $PROJECT_PATH
-echo -e "${GREEN}✓ Ownership set${NC}"
-
-# Read port from .env file
+# Read config from .env
 if [ -f "$PROJECT_PATH/.env" ]; then
-    SERVER_PORT=$(grep "^SERVER_PORT=" "$PROJECT_PATH/.env" | cut -d'=' -f2 | tr -d ' ')
+    APP_USER=$(grep "^APP_USER=" "$PROJECT_PATH/.env" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+    if [ -z "$APP_USER" ]; then
+        APP_USER="www-data"
+    fi
+    
+    SERVER_PORT=$(grep "^SERVER_PORT=" "$PROJECT_PATH/.env" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
     if [ -z "$SERVER_PORT" ]; then
         SERVER_PORT="5000"
     fi
-    echo -e "${GREEN}Server port from .env: $SERVER_PORT${NC}"
 else
+    APP_USER="www-data"
     SERVER_PORT="5000"
-    echo -e "${YELLOW}No .env file found, using default port: $SERVER_PORT${NC}"
 fi
+
+echo -e "${GREEN}App user: $APP_USER${NC}"
+echo -e "${GREEN}Server port: $SERVER_PORT${NC}"
+
+# Check if user exists before setting ownership
+if [ -z "$APP_USER" ] || ! id "$APP_USER" &>/dev/null; then
+    echo -e "${YELLOW}Warning: User '$APP_USER' does not exist, using current user for ownership${NC}"
+    APP_USER=$(whoami)
+fi
+
+# Set ownership
+echo -e "${GREEN}Setting file ownership to $APP_USER...${NC}"
+chown -R "$APP_USER:$APP_USER" "$PROJECT_PATH"
+chmod -R 755 "$PROJECT_PATH"
+echo -e "${GREEN}✓ Ownership set${NC}"
 
 # Create systemd service
 echo -e "${GREEN}Creating systemd service...${NC}"
@@ -70,7 +81,7 @@ User=$APP_USER
 WorkingDirectory=$PROJECT_PATH
 Environment="PATH=$PROJECT_PATH/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=$PROJECT_PATH/.env
-    ExecStart=$PROJECT_PATH/venv/bin/python -m flask run --host=0.0.0.0 --port=$SERVER_PORT
+ExecStart=$PROJECT_PATH/venv/bin/python -m flask run --host=0.0.0.0 --port=$SERVER_PORT
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -173,9 +184,9 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${YELLOW}Access your application at:${NC} http://$DOMAIN"
 echo ""
- echo -e "${YELLOW}Useful commands:${NC}"
- echo "  Status:  systemctl status webface"
- echo "  Logs:    journalctl -u webface -f"
- echo "  Stop:    systemctl stop webface"
- echo "  Restart: systemctl restart webface"
- echo ""
+echo -e "${YELLOW}Useful commands:${NC}"
+echo "  Status:  systemctl status webface"
+echo "  Logs:    journalctl -u webface -f"
+echo "  Stop:    systemctl stop webface"
+echo "  Restart: systemctl restart webface"
+echo ""
