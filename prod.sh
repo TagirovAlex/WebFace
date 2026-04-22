@@ -25,9 +25,11 @@ fi
 # Get project path
 PROJECT_PATH="${1:-$(pwd)}"
 DOMAIN="${2:-localhost}"
+APP_USER="${3:-$(whoami)}"
 
 echo -e "${GREEN}Project path: $PROJECT_PATH${NC}"
 echo -e "${GREEN}Domain: $DOMAIN${NC}"
+echo -e "${GREEN}App user: $APP_USER${NC}"
 echo ""
 
 # Check if application exists
@@ -35,6 +37,12 @@ if [ ! -f "$PROJECT_PATH/.env" ] || [ ! -d "$PROJECT_PATH/venv" ]; then
     echo -e "${RED}Error: Application not properly installed at $PROJECT_PATH${NC}"
     exit 1
 fi
+
+# Set ownership
+echo -e "${GREEN}Setting file ownership to $APP_USER...${NC}"
+chown -R $APP_USER:$APP_USER $PROJECT_PATH
+chmod -R 755 $PROJECT_PATH
+echo -e "${GREEN}✓ Ownership set${NC}"
 
 # Create systemd service
 echo -e "${GREEN}Creating systemd service...${NC}"
@@ -46,7 +54,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=$APP_USER
 WorkingDirectory=$PROJECT_PATH
 Environment="PATH=$PROJECT_PATH/venv/bin"
 EnvironmentFile=$PROJECT_PATH/.env
