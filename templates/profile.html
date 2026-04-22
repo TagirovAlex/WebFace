@@ -63,7 +63,6 @@
         <div class="profile-card profile-card-full">
             <h2>🔐 Смена пароля</h2>
             <form method="POST" action="{{ url_for('profile') }}" class="profile-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 
                 <div class="form-group">
                     <label for="current_password">Текущий пароль</label>

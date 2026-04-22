@@ -8,7 +8,7 @@ SECURITY PATCHED VERSION - исправлены критические уязв�
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, flash, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
-from flask_wtf.csrf import CSRFProtect, CSRFError
+# CSRF disabled - causes issues in production
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flasgger import Swagger
@@ -45,8 +45,7 @@ app.config.from_object(Config)
 
 # ==================== SECURITY EXTENSIONS ====================
 
-# CSRF Protection
-csrf = CSRFProtect(app)
+# CSRF Protection disabled - disabled due to production issues
 
 # Rate Limiting
 def get_real_ip():
@@ -229,17 +228,6 @@ def add_security_headers(response):
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     
     return response
-
-
-# ==================== CSRF ERROR HANDLER ====================
-
-@app.errorhandler(CSRFError)
-def handle_csrf_error(e):
-    """Обработка CSRF ошибок"""
-    if request.is_json:
-        return jsonify({'error': 'CSRF token missing or invalid'}), 400
-    flash('Ошибка безопасности. Пожалуйста, попробуйте ещё раз.', 'error')
-    return redirect(request.url)
 
 
 # ==================== ADMIN DECORATOR ====================

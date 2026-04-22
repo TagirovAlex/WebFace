@@ -72,9 +72,8 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
     
     # WTF CSRF защита
-    WTF_CSRF_ENABLED = True
+    WTF_CSRF_ENABLED = False
     WTF_CSRF_TIME_LIMIT = 3600  # 1 час
-    WTF_CSRF_SSL_STRICT = os.environ.get('WTF_CSRF_SSL_STRICT', 'False').lower() == 'true'
     
     # ==================== DATABASE ====================
     
@@ -162,7 +161,6 @@ class ProductionConfig(Config):
     """Конфигурация для продакшена"""
     DEBUG = False
     SESSION_COOKIE_SECURE = True
-    WTF_CSRF_SSL_STRICT = True
     
     # В продакшене SECRET_KEY ОБЯЗАТЕЛЕН
     @classmethod

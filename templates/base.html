@@ -51,26 +51,7 @@
     <!-- Скрипты в конце -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
-        // Add CSRF token to all forms automatically
-        document.addEventListener('DOMContentLoaded', function() {
-            const csrfToken = '{{ csrf_token() }}';
-            if (csrfToken) {
-                document.querySelectorAll('form').forEach(function(form) {
-                    // Skip GET forms (filters)
-                    if (form.method && form.method.toUpperCase() === 'GET') return;
-                    
-                    // Check if CSRF token already exists
-                    if (form.querySelector('[name="csrf_token"]')) return;
-                    
-                    // Add hidden CSRF token field
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = 'csrf_token';
-                    csrfInput.value = csrfToken;
-                    form.appendChild(csrfInput);
-                });
-            }
-        });
+
     </script>
     {% block extra_js %}{% endblock %}
 </body>
