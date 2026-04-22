@@ -145,7 +145,7 @@ def inject_theme():
     """Передача темы в шаблоны"""
     from flask_login import current_user
     if current_user.is_authenticated:
-        return {'dark_mode': current_user.theme == 'dark'}
+        return {'dark_mode': current_user.theme == 'dark-theme'}
     return {'dark_mode': False}
 
 
@@ -1506,7 +1506,7 @@ def api_delete_preset(preset_id):
     return jsonify({'success': True})
 
 
-ALLOWED_THEMES = ['light', 'dark', 'blue', 'green', 'purple']
+ALLOWED_THEMES = ['light', 'dark-theme', 'blue', 'green', 'purple']
 ALLOWED_COLOR_SCHEMES = ['default', 'ocean', 'forest', 'sunset']
 
 

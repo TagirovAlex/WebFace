@@ -10,8 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Переключение темы
     themeToggle.addEventListener('click', async () => {
-        const currentTheme = body.classList.contains('dark-theme') ? 'dark' : 'light';
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const currentTheme = body.classList.contains('dark-theme') ? 'dark-theme' : 'light';
+        const newTheme = currentTheme === 'dark-theme' ? 'light' : 'dark-theme';
 
         try {
             const response = await fetch('/api/theme', {
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/theme')
         .then(r => r.json())
         .then(data => {
-            if (data.success && data.theme === 'dark') {
+            if (data.success && data.theme === 'dark-theme') {
                 body.classList.add('dark-theme');
             }
             updateIcon(data.theme === 'dark');
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(() => {
             // Fallback: localStorage
             const saved = localStorage.getItem('theme');
-            if (saved === 'dark') {
+            if (saved === 'dark-theme') {
                 body.classList.add('dark-theme');
             }
             updateIcon(saved === 'dark');

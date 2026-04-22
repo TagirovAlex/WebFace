@@ -1,9 +1,5 @@
 /* Dark Theme - only overrides, extends style.css */
-/* Do not use :root here - it conflicts with style.css */
-
-body.dark-theme .token-balance {
-    color: #88c9a1;
-}
+/* Empty - dark theme styles are in style.css via body.dark-theme */
 
 body.dark-theme .user-greeting {
     color: #f0f0f0;
