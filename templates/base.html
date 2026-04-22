@@ -22,9 +22,10 @@
             <a href="{{ url_for('admin_dashboard') }}" class="nav-link admin-link">🛡️ Админ</a>
             {% endif %}
             <span class="user-greeting">👤 {{ current_user.username }}</span>
+            <span class="token-balance"> Tokens: {{ current_user.token_balance.balance if current_user.token_balance else 0 }}</span>
             <a href="{{ url_for('index') }}" class="nav-link">🏠 Главная</a>
             <a href="{{ url_for('history') }}" class="nav-link">📜 История</a>
-            <a href="{{ url_for('profile') }}" class="nav-link">⚙️ Настройки</a>
+            <a href="{{ url_for('profile') }}" class="nav-link">⚙️ Нас��ройки</a>
             <a href="{{ url_for('logout') }}" class="nav-link">🚪 Выйти</a>
 			<button id="theme-toggle" aria-label="Переключить тему" title="Сменить тему">🌙</button>
         </div>
