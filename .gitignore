@@ -44,6 +44,9 @@ opencode.json1
 # Documentation (internal only)
 *.md
 !README.md
+AGENTS.md
+TODO.md
+RELEASE_NOTES.md
 
 # Local data directories
 .olddata/
