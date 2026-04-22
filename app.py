@@ -631,6 +631,29 @@ def history():
 @admin_required
 def admin_dashboard():
     """Админ-панель"""
+    from modules import ModuleRegistry
+    ModuleRegistry.initialize()
+
+    # Calculate sizes
+    uploads_size = 0
+    results_size = 0
+    for folder in ['UPLOAD_FOLDER', 'RESULTS_FOLDER']:
+        for gen in Generation.query.all():
+            if folder == 'UPLOAD_FOLDER' and gen.input_files:
+                for f in gen.input_files:
+                    import os
+                    from werkzeug.utils import secure_filename
+                    safe_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(f))
+                    if os.path.exists(safe_path):
+                        uploads_size += os.path.getsize(safe_path)
+            elif folder == 'RESULTS_FOLDER' and gen.output_files:
+                for f in gen.output_files:
+                    import os
+                    from werkzeug.utils import secure_filename
+                    safe_path = os.path.join(app.config['RESULTS_FOLDER'], secure_filename(f))
+                    if os.path.exists(safe_path):
+                        results_size += os.path.getsize(safe_path)
+
     users = User.query.order_by(User.created_at.desc()).all()
     total_generations = Generation.query.count()
     recent_generations = Generation.query.order_by(Generation.created_at.desc()).limit(20).all()
@@ -647,7 +670,9 @@ def admin_dashboard():
     return render_template('admin/dashboard.html',
         users=users,
         stats=stats,
-        recent_generations=recent_generations)
+        recent_generations=recent_generations,
+        uploads_size=uploads_size,
+        results_size=results_size)
 
 
 @app.route('/admin/generations')

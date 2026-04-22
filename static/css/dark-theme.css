@@ -178,13 +178,19 @@ a:hover {
   color: #c53030;
 }
 
-/* Статистика */
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
 .stat-card {
   background-color: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 15px;
 }
 
 .stat-card.danger {
@@ -200,6 +206,14 @@ a:hover {
 .stat-label {
   color: #aaa;
   margin-top: 4px;
+}
+
+/* Admin actions */
+.admin-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
 }
 
 /* Админ-панель */
