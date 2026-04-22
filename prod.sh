@@ -61,11 +61,15 @@ if [ -z "$APP_USER" ] || ! id "$APP_USER" &>/dev/null; then
     APP_USER=$(whoami)
 fi
 
-# Set ownership
-echo -e "${GREEN}Setting file ownership to $APP_USER...${NC}"
-chown -R "$APP_USER:$APP_USER" "$PROJECT_PATH"
-chmod -R 755 "$PROJECT_PATH"
-echo -e "${GREEN}✓ Ownership set${NC}"
+# Set ownership (only for existing user)
+if id "$APP_USER" &>/dev/null; then
+    echo -e "${GREEN}Setting file ownership to $APP_USER...${NC}"
+    chown -R "$APP_USER:$APP_USER" "$PROJECT_PATH"
+    chmod -R 755 "$PROJECT_PATH"
+    echo -e "${GREEN}✓ Ownership set${NC}"
+else
+    echo -e "${YELLOW}Warning: User '$APP_USER' not found, skipping ownership change${NC}"
+fi
 
 # Create systemd service
 echo -e "${GREEN}Creating systemd service...${NC}"
