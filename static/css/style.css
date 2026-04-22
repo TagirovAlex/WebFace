@@ -1168,11 +1168,7 @@ textarea {
 }
 
 /* ==================== ADMIN STYLES ==================== */
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
+/* (Container styles defined earlier at line 119) */
 
 /* User detail */
 .user-detail-header {
