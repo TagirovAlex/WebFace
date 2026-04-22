@@ -6,9 +6,6 @@
     <meta name="description" content="ComfyUI Web Interface - Генерация изображений и видео с помощью AI">
     <title>{% block title %}Image/Video Generator{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    {% if dark_mode %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
-    {% endif %}
     {% block extra_css %}{% endblock %}
 </head>
 <body class="{% if dark_mode %}dark-theme{% endif %}">
