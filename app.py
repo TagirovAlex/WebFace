@@ -2655,55 +2655,6 @@ def save_results_from_comfy(comfy_outputs, is_video=False):
     return saved_files
 
 
-def delete_generation_files(generation):
-    """Удаление файлов генерации"""
-    deleted = []
-
-    if generation.input_files:
-        for filename in generation.input_files:
-            filepath = secure_path_check(app.config['UPLOAD_FOLDER'], filename)
-            if filepath and os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                    deleted.append(filename)
-                except Exception as e:
-                    print(f"[FILES] Error deleting {filename}: {e}")
-
-    if generation.output_files:
-        for filename in generation.output_files:
-            filepath = secure_path_check(app.config['RESULTS_FOLDER'], filename)
-            if filepath and os.path.exists(filepath):
-                try:
-                    os.remove(filepath)
-                    deleted.append(filename)
-                except Exception as e:
-                    print(f"[FILES] Error deleting {filename}: {e}")
-
-    if deleted:
-        print(f"[FILES] Deleted {len(deleted)} files")
-
-    return deleted
-
-
-def get_generation_files_size(generation):
-    """Получение размера файлов генерации"""
-    total_size = 0
-
-    if generation.input_files:
-        for filename in generation.input_files:
-            filepath = secure_path_check(app.config['UPLOAD_FOLDER'], filename)
-            if filepath and os.path.exists(filepath):
-                total_size += os.path.getsize(filepath)
-
-    if generation.output_files:
-        for filename in generation.output_files:
-            filepath = secure_path_check(app.config['RESULTS_FOLDER'], filename)
-            if filepath and os.path.exists(filepath):
-                total_size += os.path.getsize(filepath)
-
-    return total_size
-
-
 def get_generation_file_paths(generation, file_type='all'):
     """
     Получение списка файлов генерации с безопасными путями.

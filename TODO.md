@@ -35,8 +35,7 @@
 
 ## 🔮 Backlog
 
-### Medium Priority
-- F7: Шаринг генераций по ссылке
+No active tasks
 
 ### Low Priority - ВСЕ ✅
 - [x] F11: Дополнительные темы ✅

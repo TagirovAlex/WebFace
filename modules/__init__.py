@@ -133,8 +133,8 @@ class ModuleRegistry:
 def register_module(module_id: str, module_type: str, category: str = ""):
     """Decorator to register a module"""
     def decorator(cls):
-        BaseModule.type = module_type
-        BaseModule.category = category
-        ModuleRegistry.register(module_id, cls)
+        cls.type = module_type
+        cls.category = category
+        ModuleRegistry.register(module_id, cls())
         return cls
     return decorator

@@ -8,7 +8,7 @@ import json
 from modules import BaseModule, register_module
 
 
-WORKFLOW_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'image_edit', 'qwen_edit_multi.json')
+WORKFLOW_FILE = os.path.join(os.path.dirname(__file__), 'workflow.json')
 
 
 @register_module('qwen_multi', 'image-edit', 'Qwen')
