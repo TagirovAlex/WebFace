@@ -56,7 +56,7 @@ After=network.target
 Type=simple
 User=$APP_USER
 WorkingDirectory=$PROJECT_PATH
-Environment="PATH=$PROJECT_PATH/venv/bin"
+Environment="PATH=$PROJECT_PATH/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=$PROJECT_PATH/.env
 ExecStart=$PROJECT_PATH/venv/bin/python app.py
 Restart=always
