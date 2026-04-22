@@ -35,17 +35,7 @@
 
 ## 🔮 Backlog
 
-No active tasks
-
-### Low Priority - ВСЕ ✅
-- [x] F11: Дополнительные темы ✅
-- [x] F12: Плагины/расширения ✅
-
-### Технические - ВСЕ ✅
-- [x] T1: Flask-Migrate ✅
-- [x] T2: Кэширование (Redis) ✅
-- [x] T3: Тесты (pytest) ✅
-- [x] T4: CI/CD пайплайн ✅
+All tasks completed
 
 ---
 
