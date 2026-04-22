@@ -284,25 +284,129 @@ a:hover {
   font-size: 18px;
 }
 
-/* Состояния */
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.85em;
-  font-weight: 600;
-}
-
+/* Состояния - переопределяем для админки */
 .status-badge.completed {
-  background-color: #c6f6d5;
-  color: #276749;
+  background-color: #2d4a2f;
+  color: #d4edda;
 }
 
 .status-badge.in-progress {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: #4a370a;
+  color: #fef3c7;
 }
 
 .status-badge.failed {
-  background-color: #fed7d7;
-  color: #c53030;
+  background-color: #5a1b1b;
+  color: #fed7d7;
+}
+
+/* Admin specific styles */
+.admin-table th {
+  background-color: #3a3a3a;
+  color: #f0f0f0;
+}
+
+.admin-table tr:hover {
+  background-color: #333;
+}
+
+.stat-card {
+  background-color: #1e1e1e;
+  border: 1px solid #3a3a3a;
+}
+
+.stat-value {
+  color: #f0f0f0;
+}
+
+.success {
+  border-color: #4caf50;
+}
+
+.success .stat-value {
+  color: #4caf50;
+}
+
+.danger {
+  border-color: #f44336;
+}
+
+.danger .stat-value {
+  color: #f44336;
+}
+
+.badge-admin {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.badge-user {
+  background-color: #3a3a3a;
+  color: #f0f0f0;
+}
+
+.detail-card {
+  background-color: #1e1e1e;
+  border: 1px solid #3a3a3a;
+}
+
+.detail-label {
+  color: #aaa;
+}
+
+.detail-value {
+  color: #f0f0f0;
+}
+
+.stat-success {
+  border-color: #4caf50;
+}
+
+.stat-success .stat-value {
+  color: #4caf50;
+}
+
+.stat-danger {
+  border-color: #f44336;
+}
+
+.stat-danger .stat-value {
+  color: #f44336;
+}
+
+.tab.active {
+  background-color: #667eea;
+  color: white;
+}
+
+.tab {
+  background-color: #3a3a3a;
+  color: #aaa;
+}
+
+.type-card {
+  background-color: #1e1e1e;
+  border: 1px solid #3a3a3a;
+}
+
+.type-name-input {
+  color: #f0f0f0;
+}
+
+.type-description-input {
+  background-color: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #f0f0f0;
+}
+
+.input {
+  background-color: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #f0f0f0;
+}
+
+textarea {
+  background-color: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #f0f0f0;
 }
