@@ -1,48 +1,51 @@
 # WebFace - ComfyUI Web Interface
 # SECURITY PATCHED VERSION
 
+# Build dependencies
+setuptools>=65.5.0
+
 # Core Framework
-Flask==3.0.0
-Werkzeug==3.0.1
+Flask>=3.0.0
+Werkzeug>=3.0.0
 
 # Database
-Flask-SQLAlchemy==3.1.1
-SQLAlchemy==2.0.23
+Flask-SQLAlchemy>=3.1.0
+SQLAlchemy>=2.0.0
 
 # Authentication & Security
-Flask-Login==0.6.3
-Flask-Bcrypt==1.0.1
-Flask-WTF==1.2.1          # NEW: CSRF Protection
-WTForms==3.1.1
+Flask-Login>=0.6.0
+Flask-Bcrypt>=1.0.0
+Flask-WTF>=1.2.0
+WTForms>=3.1.0
 
-# Rate Limiting (NEW)
-Flask-Limiter==3.5.0
+# Rate Limiting
+Flask-Limiter>=3.5.0
 
 # Image Processing
-Pillow==10.2.0
+Pillow>=10.0.0
 
 # HTTP Client
-requests==2.31.0
+requests>=2.31.0
 
 # Environment Variables
-python-dotenv==1.0.0
+python-dotenv>=1.0.0
 
 # Optional: MIME type detection (recommended)
 # Uncomment if you want enhanced file validation:
-# python-magic==0.4.27
+# python-magic>=0.4.27
 
 # Optional: Redis for rate limiting in production
 # Uncomment for production:
-# redis==5.0.1
+# redis>=5.0.0
 
 # Telegram Bot
-aiogram==3.4.1
+aiogram>=3.4.0
 
 # API Documentation
-flasgger==0.9.7
+flasgger>=0.9.0
 
 # Testing
-pytest==8.0.0
+pytest>=8.0.0
 
 # Optional: Redis for caching
-# redis==5.0.1
+# redis>=5.0.0
