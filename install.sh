@@ -58,39 +58,15 @@ pip install -r requirements.txt
 
 # Copy .env.example if .env doesn't exist
 if [ ! -f ".env" ]; then
-    echo ""
     echo -e "${YELLOW}Creating .env file from .env.example...${NC}"
     cp .env.example .env
     echo -e "${GREEN}Created .env file${NC}"
+    echo -e "${YELLOW}Please edit .env manually with your configuration:${NC}"
+    echo "  - SECRET_KEY"
+    echo "  - COMFY_URL"
+    echo "  - DATABASE_URL (optional, SQLite by default)"
+    echo "  - Telegram bot tokens (BOT_TOKEN, TELEGRAM_CHAT_ID)"
     echo ""
-    echo -e "${YELLOW}Please edit .env file with your configuration:${NC}"
-    echo "  - SECRET_KEY (generate with: python -c \"import secrets; print(secrets.token_hex(32))\")"
-    echo "  - COMFY_URL (ComfyUI API endpoint)"
-    echo "  - DATABASE_URL (PostgreSQL for production)"
-    echo ""
-    echo -n "Do you want to configure these now? (y/n): "
-    read -r configure_env
-    if [ "$configure_env" = "y" ]; then
-        echo ""
-        
-        # Generate SECRET_KEY
-        SECRET_KEY=$($PYTHON_CMD -c "import secrets; print(secrets.token_hex(32))")
-        echo -e "${GREEN}Generated SECRET_KEY${NC}"
-        
-        # Update .env
-        sed -i "s/SECRET_KEY=your-secret-key-here-minimum-32-characters/SECRET_KEY=$SECRET_KEY/" .env
-        
-        echo ""
-        echo -n "Enter COMFY_URL (default: http://127.0.0.1:8188): "
-        read -r comfy_url
-        if [ -z "$comfy_url" ]; then
-            comfy_url="http://127.0.0.1:8188"
-        fi
-        sed -i "s|COMFY_URL=http://127.0.0.1:8188|COMFY_URL=$comfy_url|" .env
-        
-        echo ""
-        echo -e "${GREEN}Updated .env file${NC}"
-    fi
 fi
 
 # Initialize database
