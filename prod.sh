@@ -44,6 +44,18 @@ chown -R $APP_USER:$APP_USER $PROJECT_PATH
 chmod -R 755 $PROJECT_PATH
 echo -e "${GREEN}✓ Ownership set${NC}"
 
+# Read port from .env file
+if [ -f "$PROJECT_PATH/.env" ]; then
+    SERVER_PORT=$(grep "^SERVER_PORT=" "$PROJECT_PATH/.env" | cut -d'=' -f2 | tr -d ' ')
+    if [ -z "$SERVER_PORT" ]; then
+        SERVER_PORT="5000"
+    fi
+    echo -e "${GREEN}Server port from .env: $SERVER_PORT${NC}"
+else
+    SERVER_PORT="5000"
+    echo -e "${YELLOW}No .env file found, using default port: $SERVER_PORT${NC}"
+fi
+
 # Create systemd service
 echo -e "${GREEN}Creating systemd service...${NC}"
 
@@ -58,7 +70,7 @@ User=$APP_USER
 WorkingDirectory=$PROJECT_PATH
 Environment="PATH=$PROJECT_PATH/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=$PROJECT_PATH/.env
-ExecStart=$PROJECT_PATH/venv/bin/python app.py
+    ExecStart=$PROJECT_PATH/venv/bin/python -m flask run --host=0.0.0.0 --port=$SERVER_PORT
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -82,7 +94,7 @@ server {
     client_max_body_size 16M;
 
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:$SERVER_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -94,7 +106,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:$SERVER_PORT;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
