@@ -23,9 +23,9 @@ if [ "$EUID" -ne 0 ] && [ "$(whoami)" != "root" ]; then
 fi
 
 # Get project path
-PROJECT_PATH="${1:-$(pwd)}"
+PROJECT_PATH="${1:-/var/www/webface}"
 DOMAIN="${2:-localhost}"
-APP_USER="${3:-$(whoami)}"
+APP_USER="${3:-root}"
 
 echo -e "${GREEN}Project path: $PROJECT_PATH${NC}"
 echo -e "${GREEN}Domain: $DOMAIN${NC}"
