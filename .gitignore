@@ -40,3 +40,11 @@ Thumbs.db
 project_structure.txt
 opencode.json
 opencode.json1
+
+# Documentation (internal only)
+*.md
+!README.md
+
+# Local data directories
+.olddata/
+.github/
