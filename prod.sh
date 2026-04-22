@@ -153,7 +153,7 @@ systemctl restart webface
 if systemctl is-active --quiet webface; then
     echo -e "${GREEN}✓ WebFace service started${NC}"
 else
-    echo -e "${YELLOW}⚠ WebFace service failed to start. Check: sudo journalctl -u webface -n 50${NC}"
+    echo -e "${YELLOW}⚠ WebFace service failed to start. Check: journalctl -u webface -n 50${NC}"
 fi
 
 echo -e "${GREEN}Enabling and starting Nginx...${NC}"
@@ -163,7 +163,7 @@ systemctl restart nginx
 if systemctl is-active --quiet nginx; then
     echo -e "${GREEN}✓ Nginx service started${NC}"
 else
-    echo -e "${YELLOW}⚠ Nginx service failed to start. Check: sudo journalctl -u nginx -n 50${NC}"
+    echo -e "${YELLOW}⚠ Nginx service failed to start. Check: journalctl -u nginx -n 50${NC}"
 fi
 
 echo ""
@@ -173,9 +173,9 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${YELLOW}Access your application at:${NC} http://$DOMAIN"
 echo ""
-echo -e "${YELLOW}Useful commands:${NC}"
-echo "  Status:  sudo systemctl status webface"
-echo "  Logs:    sudo journalctl -u webface -f"
-echo "  Stop:    sudo systemctl stop webface"
-echo "  Restart: sudo systemctl restart webface"
-echo ""
+ echo -e "${YELLOW}Useful commands:${NC}"
+ echo "  Status:  systemctl status webface"
+ echo "  Logs:    journalctl -u webface -f"
+ echo "  Stop:    systemctl stop webface"
+ echo "  Restart: systemctl restart webface"
+ echo ""
