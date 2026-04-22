@@ -55,6 +55,56 @@ body.dark-theme {
   color: var(--text);
 }
 
+.dark-theme .success-rate {
+  color: #88c9a1;
+}
+
+.dark-theme .user-greeting {
+  color: #f0f0f0;
+}
+
+.dark-theme .token-balance {
+  color: #88c9a1;
+}
+
+.dark-theme .badge-admin {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.dark-theme .badge-user {
+  background-color: #3a3a3a;
+  color: #f0f0f0;
+}
+
+.dark-theme .stat-success {
+  border-left-color: #4caf50;
+}
+
+.dark-theme .stat-danger {
+  border-left-color: #f44336;
+}
+
+.dark-theme .stat-info {
+  border-left-color: #4caf50;
+}
+
+.dark-theme .stat-value {
+  color: #88c9a1;
+}
+
+.dark-theme .stat-label {
+  color: #aaa;
+}
+
+.dark-theme .detail-label {
+  color: #aaa;
+}
+
+.dark-theme .detail-value {
+  color: #f0f0f0;
+}
+
 
 
 /* ==================== RESET & BASE ==================== */
